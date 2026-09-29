@@ -1,0 +1,52 @@
+name: Build Windows VST3
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [ main ]
+
+jobs:
+  build:
+    runs-on: windows-2022
+
+    steps:
+      - name: Checkout project
+        uses: actions/checkout@v4
+
+      - name: Clone Steinberg VST3 SDK
+        shell: pwsh
+        run: |
+          git clone --depth 1 --recurse-submodules --shallow-submodules https://github.com/steinbergmedia/vst3sdk.git external/vst3sdk
+
+      - name: Configure
+        shell: pwsh
+        run: |
+          cmake -S . -B build -G "Visual Studio 17 2022" -A x64 `
+            -DVST3_SDK_ROOT="$PWD/external/vst3sdk" `
+            -DSMTG_CREATE_PLUGIN_LINK=0
+
+      - name: Build Release
+        shell: pwsh
+        run: cmake --build build --config Release --target JerzyTapeDelay --parallel
+
+      - name: Collect VST3 bundle
+        shell: pwsh
+        run: |
+          $plugin = Get-ChildItem -Path build -Recurse -Directory -Filter "JerzyTapeDelay.vst3" | Select-Object -First 1
+          if (-not $plugin) {
+            Write-Host "JerzyTapeDelay.vst3 not found. Nearby build outputs:"
+            Get-ChildItem -Path build -Recurse | Where-Object { $_.Name -match 'JerzyTapeDelay|vst3' } | Select-Object FullName
+            throw "VST3 bundle was not produced"
+          }
+          New-Item -ItemType Directory -Force -Path artifact | Out-Null
+          Copy-Item -Recurse -Force $plugin.FullName artifact/JerzyTapeDelay.vst3
+          Compress-Archive -Path artifact/JerzyTapeDelay.vst3 -DestinationPath JerzyTapeDelay_Windows_x64.zip -Force
+
+      - name: Upload ready plugin
+        uses: actions/upload-artifact@v4
+        with:
+          name: JerzyTapeDelay-Windows-x64
+          path: |
+            artifact/JerzyTapeDelay.vst3
+            JerzyTapeDelay_Windows_x64.zip
+          if-no-files-found: error
