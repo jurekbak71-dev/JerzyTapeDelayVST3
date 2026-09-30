@@ -1,5 +1,6 @@
 #include "tapedrive_controller.h"
 #include "tapedrive_params.h"
+#include "tapedrive_gui_views.h"
 #include "base/source/fstreamer.h"
 #include "public.sdk/source/vst/vstparameters.h"
 #include <cstring>
@@ -8,6 +9,7 @@ using namespace Steinberg; using namespace Steinberg::Vst;
 namespace JerzyAudio {
 
 tresult PLUGIN_API TapeDriveController::initialize(FUnknown*c){
+ registerTapeDriveViews();
  auto r=EditControllerEx1::initialize(c); if(r!=kResultOk)return r;
  auto add=[this](const TChar*n,ParamID id,const TChar*u,double lo,double hi,double def,int prec,int32 steps=0,int32 flags=ParameterInfo::kCanAutomate){
   auto*p=new RangeParameter(n,id,u,lo,hi,def,steps,flags); p->setPrecision(prec); parameters.addParameter(p);
