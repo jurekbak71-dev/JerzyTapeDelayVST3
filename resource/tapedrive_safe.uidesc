@@ -1,0 +1,53 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<vstgui-ui-description version="1">
+<fonts/>
+<colors>
+ <color name="BG" rgba="#18130fff"/>
+ <color name="PANEL" rgba="#2a2119ff"/>
+ <color name="AMBER" rgba="#eda542ff"/>
+ <color name="CREAM" rgba="#ead7b5ff"/>
+</colors>
+<template class="CViewContainer" name="view" origin="0, 0" size="820, 520" minSize="820, 520" maxSize="820, 520" back-color="BG" transparent="false">
+ <view class="CTextLabel" origin="40, 20" size="740, 45" title="JERZY TAPE DRIVE" font="~ NormalFontVeryBig" font-color="CREAM" transparent="true" text-alignment="center" mouse-enabled="false"/>
+ <view class="CTextLabel" origin="40, 63" size="740, 24" title="TAPE SATURATION + OUTPUT FILTERS" font="~ NormalFontBig" font-color="AMBER" transparent="true" text-alignment="center" mouse-enabled="false"/>
+
+ <view class="CKnob" control-tag="Sat" origin="55, 125" size="115, 115" transparent="true" opacity="0.95"/>
+ <view class="CKnob" control-tag="Level" origin="200, 125" size="115, 115" transparent="true" opacity="0.95"/>
+ <view class="CKnob" control-tag="Dry" origin="345, 125" size="115, 115" transparent="true" opacity="0.95"/>
+ <view class="CKnob" control-tag="Gain" origin="500, 140" size="85, 85" transparent="true" opacity="0.95"/>
+ <view class="CKnob" control-tag="Shift" origin="625, 140" size="85, 85" transparent="true" opacity="0.95"/>
+
+ <view class="CTextLabel" origin="52, 242" size="120, 24" title="TAPE SAT" font="~ NormalFontBig" font-color="AMBER" transparent="true" text-alignment="center"/>
+ <view class="CTextLabel" origin="197, 242" size="120, 24" title="LEVEL" font="~ NormalFontBig" font-color="AMBER" transparent="true" text-alignment="center"/>
+ <view class="CTextLabel" origin="342, 242" size="120, 24" title="DRY" font="~ NormalFontBig" font-color="AMBER" transparent="true" text-alignment="center"/>
+ <view class="CTextLabel" origin="483, 230" size="120, 36" title="GAIN&#10;NORM / HIGH" font="~ NormalFont" font-color="CREAM" transparent="true" text-alignment="center"/>
+ <view class="CTextLabel" origin="607, 230" size="125, 36" title="SHIFT&#10;FLAT / HIGH / MID" font="~ NormalFont" font-color="CREAM" transparent="true" text-alignment="center"/>
+
+ <view class="CTextLabel" origin="55, 300" size="710, 28" title="OUTPUT FILTERS" font="~ NormalFontBig" font-color="AMBER" back-color="PANEL" transparent="false" text-alignment="center"/>
+
+ <view class="CKnob" control-tag="HPF" origin="75, 340" size="100, 100" transparent="true"/>
+ <view class="CKnob" control-tag="HPFRes" origin="230, 340" size="100, 100" transparent="true"/>
+ <view class="CKnob" control-tag="LPF" origin="410, 340" size="100, 100" transparent="true"/>
+ <view class="CKnob" control-tag="LPFRes" origin="565, 340" size="100, 100" transparent="true"/>
+
+ <view class="CTextLabel" origin="65, 442" size="120, 24" title="HPF FREQ" font="~ NormalFontBig" font-color="CREAM" transparent="true" text-alignment="center"/>
+ <view class="CTextLabel" origin="220, 442" size="120, 24" title="HPF RES" font="~ NormalFontBig" font-color="CREAM" transparent="true" text-alignment="center"/>
+ <view class="CTextLabel" origin="400, 442" size="120, 24" title="LPF FREQ" font="~ NormalFontBig" font-color="CREAM" transparent="true" text-alignment="center"/>
+ <view class="CTextLabel" origin="555, 442" size="120, 24" title="LPF RES" font="~ NormalFontBig" font-color="CREAM" transparent="true" text-alignment="center"/>
+
+ <view class="CTextButton" control-tag="Bypass" origin="690, 365" size="90, 58" title="BYPASS" font="~ NormalFontBig" text-color="CREAM" text-color-highlighted="AMBER" frame-color="AMBER" frame-color-highlighted="CREAM" frame-width="2" round-radius="10" transparent="true"/>
+</template>
+<control-tags>
+ <control-tag name="Sat" tag="300"/>
+ <control-tag name="Level" tag="301"/>
+ <control-tag name="Dry" tag="302"/>
+ <control-tag name="Gain" tag="303"/>
+ <control-tag name="Shift" tag="304"/>
+ <control-tag name="Bypass" tag="305"/>
+ <control-tag name="HPF" tag="307"/>
+ <control-tag name="HPFRes" tag="308"/>
+ <control-tag name="LPF" tag="309"/>
+ <control-tag name="LPFRes" tag="310"/>
+</control-tags>
+<gradients/><variables/>
+</vstgui-ui-description>

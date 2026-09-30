@@ -7,7 +7,11 @@ enum TapeDriveParamIds : unsigned int {
     kGainModeId,
     kShiftId,
     kDriveBypassId,
-    kDriveMeterId
+    kDriveMeterId,
+    kHPFCutoffId,
+    kHPFResId,
+    kLPFCutoffId,
+    kLPFResId
 };
 struct TapeDriveParams {
     double sat=0.35;
@@ -16,5 +20,9 @@ struct TapeDriveParams {
     double gainMode=0.0;
     double shift=0.5;
     double bypass=0.0;
+    double hpfCutoff=0.0;
+    double hpfRes=0.018;
+    double lpfCutoff=1.0;
+    double lpfRes=0.018;
 };
 }
