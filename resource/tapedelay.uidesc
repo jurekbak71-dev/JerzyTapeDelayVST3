@@ -1,0 +1,48 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<vstgui-ui-description version="1">
+  <fonts/>
+  <colors>
+    <color name="Amber" rgba="#ffad43ff"/>
+    <color name="Cream" rgba="#edd8b4ff"/>
+    <color name="Panel" rgba="#17130fff"/>
+    <color name="Glass" rgba="#2a2119cc"/>
+    <color name="MeterGreen" rgba="#d8a436ff"/>
+  </colors>
+  <template bitmap="background" class="CViewContainer" maxSize="1000, 554" minSize="1000, 554" mouse-enabled="true" name="view" opacity="1" origin="0, 0" size="1000, 554" transparent="false">
+    <view class="CKnob" control-tag="Time" default-value="0.3367347" max-value="1" min-value="0" mouse-enabled="true" opacity="0.84" origin="75, 210" size="125, 125" transparent="true" wheel-inc-value="0.01"/>
+    <view class="CKnob" control-tag="Feedback" default-value="0.4421052" max-value="1" min-value="0" mouse-enabled="true" opacity="0.84" origin="265, 210" size="125, 125" transparent="true" wheel-inc-value="0.01"/>
+    <view class="CKnob" control-tag="Mix" default-value="0.35" max-value="1" min-value="0" mouse-enabled="true" opacity="0.84" origin="465, 210" size="125, 125" transparent="true" wheel-inc-value="0.01"/>
+
+    <view class="CKnob" control-tag="Drive" default-value="0.25" max-value="1" min-value="0" mouse-enabled="true" opacity="0.84" origin="75, 382" size="125, 125" transparent="true" wheel-inc-value="0.01"/>
+    <view class="CKnob" control-tag="Tone" default-value="0.315476" max-value="1" min-value="0" mouse-enabled="true" opacity="0.84" origin="270, 382" size="125, 125" transparent="true" wheel-inc-value="0.01"/>
+    <view class="CKnob" control-tag="WowFlutter" default-value="0.22" max-value="1" min-value="0" mouse-enabled="true" opacity="0.84" origin="465, 382" size="125, 125" transparent="true" wheel-inc-value="0.01"/>
+
+    <view class="CTextLabel" control-tag="Time" font="~ NormalFont" font-color="Amber" frame-color="Panel" frame-width="1" mouse-enabled="false" opacity="0.95" origin="88, 326" round-rect-radius="4" size="100, 24" style-round-rect="true" text-alignment="center" transparent="false"/>
+    <view class="CTextLabel" control-tag="Feedback" font="~ NormalFont" font-color="Amber" frame-color="Panel" frame-width="1" mouse-enabled="false" opacity="0.95" origin="278, 326" round-rect-radius="4" size="100, 24" style-round-rect="true" text-alignment="center" transparent="false"/>
+    <view class="CTextLabel" control-tag="Mix" font="~ NormalFont" font-color="Amber" frame-color="Panel" frame-width="1" mouse-enabled="false" opacity="0.95" origin="478, 326" round-rect-radius="4" size="100, 24" style-round-rect="true" text-alignment="center" transparent="false"/>
+    <view class="CTextLabel" control-tag="Drive" font="~ NormalFont" font-color="Amber" frame-color="Panel" frame-width="1" mouse-enabled="false" opacity="0.95" origin="88, 498" round-rect-radius="4" size="100, 24" style-round-rect="true" text-alignment="center" transparent="false"/>
+    <view class="CTextLabel" control-tag="Tone" font="~ NormalFont" font-color="Amber" frame-color="Panel" frame-width="1" mouse-enabled="false" opacity="0.95" origin="283, 498" round-rect-radius="4" size="100, 24" style-round-rect="true" text-alignment="center" transparent="false"/>
+    <view class="CTextLabel" control-tag="WowFlutter" font="~ NormalFont" font-color="Amber" frame-color="Panel" frame-width="1" mouse-enabled="false" opacity="0.95" origin="478, 498" round-rect-radius="4" size="100, 24" style-round-rect="true" text-alignment="center" transparent="false"/>
+
+    <view back-color="Glass" class="CTextLabel" font="~ NormalFontBig" font-color="Cream" frame-color="Amber" frame-width="1" mouse-enabled="false" opacity="0.88" origin="655, 190" round-rect-radius="6" size="285, 28" style-round-rect="true" text-alignment="center" title="OUTPUT LEVEL" transparent="false"/>
+    <view class="CSlider" control-tag="Meter" default-value="0" draw-back="true" draw-back-color="Glass" draw-frame="true" draw-frame-color="Cream" draw-value="true" draw-value-color="MeterGreen" draw-value-from-center="false" draw-value-inverted="false" max-value="1" min-value="0" mouse-enabled="false" opacity="0.95" orientation="vertical" origin="788, 228" reverse-orientation="false" size="28, 118" transparent="false" wheel-inc-value="0.01"/>
+    <view back-color="Glass" class="CTextLabel" control-tag="Meter" font="~ NormalFont" font-color="Amber" frame-color="Panel" frame-width="1" mouse-enabled="false" opacity="0.92" origin="742, 352" round-rect-radius="4" size="120, 24" style-round-rect="true" text-alignment="center" transparent="false"/>
+
+    <view class="CTextButton" control-tag="Bypass" default-value="0" font="~ NormalFontBig" frame-color="Amber" frame-color-highlighted="Cream" frame-width="2" kick-style="false" max-value="1" min-value="0" mouse-enabled="true" opacity="0.92" origin="842, 410" round-radius="30" size="90, 60" text-alignment="center" text-color="Cream" text-color-highlighted="Amber" title="BYPASS" transparent="true" wheel-inc-value="1"/>
+  </template>
+  <bitmaps>
+    <bitmap name="background" path="tapedelay_background.jpg"/>
+  </bitmaps>
+  <control-tags>
+    <control-tag name="Time" tag="100"/>
+    <control-tag name="Feedback" tag="101"/>
+    <control-tag name="Mix" tag="102"/>
+    <control-tag name="Drive" tag="103"/>
+    <control-tag name="Tone" tag="104"/>
+    <control-tag name="WowFlutter" tag="105"/>
+    <control-tag name="Bypass" tag="200"/>
+    <control-tag name="Meter" tag="201"/>
+  </control-tags>
+  <gradients/>
+  <variables/>
+</vstgui-ui-description>

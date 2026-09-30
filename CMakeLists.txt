@@ -1,5 +1,5 @@
 cmake_minimum_required(VERSION 3.25)
-project(JerzyTapeDelay VERSION 0.1.0.0 DESCRIPTION "Tape Delay VST3")
+project(JerzyTapeDelay VERSION 0.2.0.0 DESCRIPTION "Tape Delay VST3")
 
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
@@ -32,11 +32,18 @@ smtg_add_vst3plugin(JerzyTapeDelay
     source/tapedelay_controller.h
     source/tapedelay_controller.cpp
     source/tapedelay_entry.cpp
+    resource/tapedelay.uidesc
 )
 
-target_link_libraries(JerzyTapeDelay PRIVATE sdk)
+target_link_libraries(JerzyTapeDelay PRIVATE sdk vstgui_support)
 target_compile_features(JerzyTapeDelay PUBLIC cxx_std_17)
 smtg_target_configure_version_file(JerzyTapeDelay)
+
+smtg_target_add_plugin_resources(JerzyTapeDelay
+    RESOURCES
+        resource/tapedelay.uidesc
+        resource/tapedelay_background.jpg
+)
 
 if(SMTG_MAC)
     smtg_target_set_bundle(JerzyTapeDelay

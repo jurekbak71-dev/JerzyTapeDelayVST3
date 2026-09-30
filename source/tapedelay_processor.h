@@ -25,10 +25,12 @@ public:
 
 private:
     void readParameterChanges(Steinberg::Vst::IParameterChanges* changes);
+    void sendMeter(Steinberg::Vst::ProcessData& data, double peak);
     NormalizedParams normalized {};
     TapeDelayDSP<float> dsp32;
     TapeDelayDSP<double> dsp64;
     double sampleRate = 44100.0;
+    double meterValue = 0.0;
 };
 
 } // namespace JerzyAudio

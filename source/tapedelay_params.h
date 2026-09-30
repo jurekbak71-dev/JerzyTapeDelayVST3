@@ -10,7 +10,9 @@ enum ParameterIds : unsigned int {
     kMixId,
     kDriveId,
     kToneId,
-    kWowFlutterId
+    kWowFlutterId,
+    kBypassId = 200,
+    kMeterId = 201
 };
 
 struct NormalizedParams {
@@ -20,6 +22,7 @@ struct NormalizedParams {
     double drive = 6.0 / 24.0;
     double tone = (6500.0 - 1200.0) / (18000.0 - 1200.0);
     double wowFlutter = 0.22;
+    double bypass = 0.0;
 };
 
 struct PlainParams {
