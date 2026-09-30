@@ -11,7 +11,10 @@ enum TapeDriveParamIds : unsigned int {
     kHPFCutoffId,
     kHPFResId,
     kLPFCutoffId,
-    kLPFResId
+    kLPFResId,
+    kWowFlutterId,
+    kInputMeterId,
+    kSaturationMeterId
 };
 struct TapeDriveParams {
     double sat=0.35;
@@ -24,5 +27,6 @@ struct TapeDriveParams {
     double hpfRes=0.018;
     double lpfCutoff=1.0;
     double lpfRes=0.018;
+    double wowFlutter=0.0;
 };
 }

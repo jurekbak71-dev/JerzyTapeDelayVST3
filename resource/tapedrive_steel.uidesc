@@ -1,0 +1,56 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<vstgui-ui-description version="1">
+<fonts/>
+<colors>
+ <color name="Steel" rgba="#24211eff"/>
+ <color name="Steel2" rgba="#302b26ff"/>
+ <color name="Black" rgba="#0f0d0bff"/>
+ <color name="Amber" rgba="#f1a547ff"/>
+ <color name="Cream" rgba="#ead9baff"/>
+ <color name="Meter" rgba="#ff9b2fff"/>
+ <color name="Red" rgba="#db4d31ff"/>
+</colors>
+<template class="CViewContainer" name="view" origin="0, 0" size="900, 620" minSize="900, 620" maxSize="900, 620" back-color="Steel" transparent="false">
+ <view class="CTextLabel" origin="35, 18" size="830, 54" title="JERZY TAPE DRIVE" font="~ NormalFontVeryBig" font-color="Cream" back-color="Steel2" frame-color="Amber" frame-width="1" round-rect-radius="8" style-round-rect="true" transparent="false" text-alignment="center" mouse-enabled="false"/>
+ <view class="CTextLabel" origin="35, 72" size="830, 28" title="ANALOG TAPE SATURATION / WORN TAPE MECHANICS" font="~ NormalFontBig" font-color="Amber" transparent="true" text-alignment="center" mouse-enabled="false"/>
+ <view class="CTextLabel" origin="65, 120" size="230, 120" title="INPUT" font="~ NormalFontBig" font-color="Cream" back-color="Black" frame-color="Amber" frame-width="2" round-rect-radius="8" style-round-rect="true" transparent="false" text-alignment="center" mouse-enabled="false"/>
+ <view class="CTextLabel" origin="335, 120" size="230, 120" title="SATURATION" font="~ NormalFontBig" font-color="Cream" back-color="Black" frame-color="Amber" frame-width="2" round-rect-radius="8" style-round-rect="true" transparent="false" text-alignment="center" mouse-enabled="false"/>
+ <view class="CTextLabel" origin="605, 120" size="230, 120" title="OUTPUT" font="~ NormalFontBig" font-color="Cream" back-color="Black" frame-color="Amber" frame-width="2" round-rect-radius="8" style-round-rect="true" transparent="false" text-alignment="center" mouse-enabled="false"/>
+ <view class="CSlider" control-tag="InputMeter" origin="85, 188" size="190, 18" orientation="horizontal" mouse-enabled="false" draw-back="true" draw-back-color="Steel2" draw-frame="true" draw-frame-color="Cream" draw-value="true" draw-value-color="Meter" transparent="false"/>
+ <view class="CSlider" control-tag="SatMeter" origin="355, 188" size="190, 18" orientation="horizontal" mouse-enabled="false" draw-back="true" draw-back-color="Steel2" draw-frame="true" draw-frame-color="Cream" draw-value="true" draw-value-color="Red" transparent="false"/>
+ <view class="CSlider" control-tag="OutputMeter" origin="625, 188" size="190, 18" orientation="horizontal" mouse-enabled="false" draw-back="true" draw-back-color="Steel2" draw-frame="true" draw-frame-color="Cream" draw-value="true" draw-value-color="Meter" transparent="false"/>
+ <view class="CKnob" control-tag="Sat" origin="65, 275" size="130, 130" transparent="true" opacity="0.95" wheel-inc-value="0.01"/>
+ <view class="CKnob" control-tag="Level" origin="260, 275" size="130, 130" transparent="true" opacity="0.95" wheel-inc-value="0.01"/>
+ <view class="CKnob" control-tag="Dry" origin="455, 275" size="130, 130" transparent="true" opacity="0.95" wheel-inc-value="0.01"/>
+ <view class="CKnob" control-tag="WowFlutter" origin="650, 275" size="130, 130" transparent="true" opacity="0.95" wheel-inc-value="0.01"/>
+ <view class="CTextLabel" origin="65, 410" size="130, 26" title="TAPE SAT" font="~ NormalFontBig" font-color="Amber" transparent="true" text-alignment="center"/>
+ <view class="CTextLabel" origin="260, 410" size="130, 26" title="LEVEL" font="~ NormalFontBig" font-color="Amber" transparent="true" text-alignment="center"/>
+ <view class="CTextLabel" origin="455, 410" size="130, 26" title="DRY" font="~ NormalFontBig" font-color="Amber" transparent="true" text-alignment="center"/>
+ <view class="CTextLabel" origin="650, 410" size="130, 26" title="WOW / FLUTTER" font="~ NormalFontBig" font-color="Amber" transparent="true" text-alignment="center"/>
+ <view back-color="Black" class="CTextLabel" control-tag="Sat" origin="87, 442" size="86, 22" font="~ NormalFont" font-color="Amber" frame-color="Amber" frame-width="1" text-alignment="center" transparent="false"/>
+ <view back-color="Black" class="CTextLabel" control-tag="Level" origin="282, 442" size="86, 22" font="~ NormalFont" font-color="Amber" frame-color="Amber" frame-width="1" text-alignment="center" transparent="false"/>
+ <view back-color="Black" class="CTextLabel" control-tag="Dry" origin="477, 442" size="86, 22" font="~ NormalFont" font-color="Amber" frame-color="Amber" frame-width="1" text-alignment="center" transparent="false"/>
+ <view back-color="Black" class="CTextLabel" control-tag="WowFlutter" origin="672, 442" size="86, 22" font="~ NormalFont" font-color="Amber" frame-color="Amber" frame-width="1" text-alignment="center" transparent="false"/>
+ <view class="CTextLabel" origin="45, 480" size="590, 30" title="OUTPUT FILTER" font="~ NormalFontBig" font-color="Cream" back-color="Steel2" frame-color="Amber" frame-width="1" round-rect-radius="6" style-round-rect="true" transparent="false" text-alignment="center"/>
+ <view class="CKnob" control-tag="HPF" origin="58, 515" size="75, 75" transparent="true"/>
+ <view class="CKnob" control-tag="HPFRes" origin="188, 515" size="75, 75" transparent="true"/>
+ <view class="CKnob" control-tag="LPF" origin="338, 515" size="75, 75" transparent="true"/>
+ <view class="CKnob" control-tag="LPFRes" origin="468, 515" size="75, 75" transparent="true"/>
+ <view class="CTextLabel" origin="48, 588" size="95, 22" title="HPF FREQ" font="~ NormalFont" font-color="Cream" transparent="true" text-alignment="center"/>
+ <view class="CTextLabel" origin="178, 588" size="95, 22" title="HPF RES" font="~ NormalFont" font-color="Cream" transparent="true" text-alignment="center"/>
+ <view class="CTextLabel" origin="328, 588" size="95, 22" title="LPF FREQ" font="~ NormalFont" font-color="Cream" transparent="true" text-alignment="center"/>
+ <view class="CTextLabel" origin="458, 588" size="95, 22" title="LPF RES" font="~ NormalFont" font-color="Cream" transparent="true" text-alignment="center"/>
+ <view class="CTextButton" control-tag="Gain" origin="650, 500" size="90, 54" title="GAIN&#10;NORMAL / HIGH" font="~ NormalFont" text-color="Cream" text-color-highlighted="Amber" frame-color="Amber" frame-color-highlighted="Cream" frame-width="2" round-radius="10" kick-style="false" transparent="true"/>
+ <view class="CKnob" control-tag="Shift" origin="755, 500" size="70, 70" transparent="true" wheel-inc-value="0.5"/>
+ <view class="CTextLabel" origin="744, 572" size="92, 38" title="SHIFT&#10;FLAT / HIGH / MID" font="~ NormalFont" font-color="Cream" transparent="true" text-alignment="center"/>
+ <view class="CTextButton" control-tag="Bypass" origin="650, 565" size="90, 42" title="BYPASS" font="~ NormalFontBig" text-color="Cream" text-color-highlighted="Amber" frame-color="Amber" frame-color-highlighted="Cream" frame-width="2" round-radius="10" kick-style="false" transparent="true"/>
+</template>
+<control-tags>
+ <control-tag name="Sat" tag="300"/><control-tag name="Level" tag="301"/><control-tag name="Dry" tag="302"/>
+ <control-tag name="Gain" tag="303"/><control-tag name="Shift" tag="304"/><control-tag name="Bypass" tag="305"/>
+ <control-tag name="OutputMeter" tag="306"/><control-tag name="HPF" tag="307"/><control-tag name="HPFRes" tag="308"/>
+ <control-tag name="LPF" tag="309"/><control-tag name="LPFRes" tag="310"/><control-tag name="WowFlutter" tag="311"/>
+ <control-tag name="InputMeter" tag="312"/><control-tag name="SatMeter" tag="313"/>
+</control-tags>
+<gradients/><variables/>
+</vstgui-ui-description>

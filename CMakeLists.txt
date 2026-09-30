@@ -53,14 +53,14 @@ smtg_add_vst3plugin(JerzyTapeDrive
     source/tapedrive_controller.h
     source/tapedrive_controller.cpp
     source/tapedrive_entry.cpp
-    resource/tapedrive_safe.uidesc
+    resource/tapedrive_steel.uidesc
 )
 target_link_libraries(JerzyTapeDrive PRIVATE sdk vstgui_support)
 target_compile_features(JerzyTapeDrive PUBLIC cxx_std_17)
 smtg_target_configure_version_file(JerzyTapeDrive)
 smtg_target_add_plugin_resources(JerzyTapeDrive
     RESOURCES
-        resource/tapedrive_safe.uidesc
+        resource/tapedrive_steel.uidesc
 )
 
 if(SMTG_MAC)

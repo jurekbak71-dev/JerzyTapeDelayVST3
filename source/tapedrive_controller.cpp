@@ -3,6 +3,7 @@
 #include "base/source/fstreamer.h"
 #include "public.sdk/source/vst/vstparameters.h"
 #include <cstring>
+
 using namespace Steinberg; using namespace Steinberg::Vst;
 namespace JerzyAudio {
 
@@ -21,27 +22,31 @@ tresult PLUGIN_API TapeDriveController::initialize(FUnknown*c){
  add(STR16("HPF Res"),kHPFResId,STR16("Q"),0.5,12.0,0.707,2);
  add(STR16("LPF"),kLPFCutoffId,STR16("Hz"),1000,20000,20000,0);
  add(STR16("LPF Res"),kLPFResId,STR16("Q"),0.5,12.0,0.707,2);
+ add(STR16("Wow Flutter"),kWowFlutterId,STR16("%"),0,100,0,1);
+ add(STR16("Input Meter"),kInputMeterId,STR16(""),0,1,0,2,0,ParameterInfo::kIsReadOnly);
+ add(STR16("Saturation Meter"),kSaturationMeterId,STR16(""),0,1,0,2,0,ParameterInfo::kIsReadOnly);
+ add(STR16("Output Meter"),kDriveMeterId,STR16(""),0,1,0,2,0,ParameterInfo::kIsReadOnly);
  return kResultOk;
 }
 
 tresult PLUGIN_API TapeDriveController::setComponentState(IBStream*s){
  if(!s)return kResultFalse;
  IBStreamer b(s,kLittleEndian);
- float v[10]{};
+ float v[11]{};
  for(int i=0;i<6;++i) if(!b.readFloat(v[i])) return kResultFalse;
  setParamNormalized(kSatId,v[0]); setParamNormalized(kLevelId,v[1]); setParamNormalized(kDryId,v[2]);
  setParamNormalized(kGainModeId,v[3]); setParamNormalized(kShiftId,v[4]); setParamNormalized(kDriveBypassId,v[5]);
-
  if(b.readFloat(v[6])) setParamNormalized(kHPFCutoffId,v[6]);
  if(b.readFloat(v[7])) setParamNormalized(kHPFResId,v[7]);
  if(b.readFloat(v[8])) setParamNormalized(kLPFCutoffId,v[8]);
  if(b.readFloat(v[9])) setParamNormalized(kLPFResId,v[9]);
+ if(b.readFloat(v[10])) setParamNormalized(kWowFlutterId,v[10]);
  return kResultOk;
 }
 
 IPlugView* PLUGIN_API TapeDriveController::createView(const char*n){
  if(n&&std::strcmp(n,ViewType::kEditor)==0)
-   return new VSTGUI::VST3Editor(this,"view","tapedrive_safe.uidesc");
+   return new VSTGUI::VST3Editor(this,"view","tapedrive_steel.uidesc");
  return nullptr;
 }
 
