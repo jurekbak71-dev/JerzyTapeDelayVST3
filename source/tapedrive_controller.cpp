@@ -48,7 +48,9 @@ tresult PLUGIN_API TapeDriveController::setComponentState(IBStream*s){
 
 IPlugView* PLUGIN_API TapeDriveController::createView(const char*n){
  if(n&&std::strcmp(n,ViewType::kEditor)==0)
-   return new VSTGUI::VST3Editor(this,"view","tapedrive_steel.uidesc");
+   auto* editor = new VSTGUI::AspectRatioVST3Editor(this,"view","tapedrive_steel.uidesc");
+   editor->setMinZoomFactor(0.70);
+   return editor;
  return nullptr;
 }
 
