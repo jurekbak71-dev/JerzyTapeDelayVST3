@@ -27,7 +27,7 @@ void TapeDriveProcessor::readChanges(IParameterChanges* c){
  if(!c)return; for(int32 i=0;i<c->getParameterCount();++i)if(auto*q=c->getParameterData(i)){
   int32 n=q->getPointCount(); if(n<=0)continue; int32 off=0; ParamValue v=0; if(q->getPoint(n-1,off,v)!=kResultTrue)continue; v=std::clamp(v,0.0,1.0);
   switch(q->getParameterId()){case kSatId:p.sat=v;break;case kLevelId:p.level=v;break;case kDryId:p.dry=v;break;case kGainModeId:p.gainMode=v;break;case kShiftId:p.shift=v;break;case kDriveBypassId:p.bypass=v;break;default:break;}
- }}
+ }
 }
 void TapeDriveProcessor::sendMeter(ProcessData& d,double pk){
  pk=std::clamp(pk,0.0,1.0); meter=std::max(std::pow(pk,0.35),meter*0.90); if(!d.outputParameterChanges)return;
