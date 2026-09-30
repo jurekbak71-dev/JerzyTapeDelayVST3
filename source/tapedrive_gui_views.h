@@ -10,7 +10,7 @@ public:
     void draw(VSTGUI::CDrawContext* context) override;
 };
 
-class AnalogMeter : public VSTGUI::CControl {
+class AnalogMeter : public VSTGUI::CKnob {
 public:
     AnalogMeter(const VSTGUI::CRect& size, VSTGUI::IControlListener* listener, int32_t tag);
     void draw(VSTGUI::CDrawContext* context) override;
