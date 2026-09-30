@@ -1,0 +1,29 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<vstgui-ui-description version="1">
+<fonts/><colors>
+<color name="Bg" rgba="#17120fff"/><color name="Amber" rgba="#f0a542ff"/><color name="Cream" rgba="#ead9b8ff"/><color name="Meter" rgba="#ef8f2dff"/>
+</colors>
+<template class="CViewContainer" name="view" origin="0, 0" size="760, 420" minSize="760, 420" maxSize="760, 420" back-color="Bg" transparent="false">
+<view class="CTextLabel" origin="45, 24" size="670, 54" title="JERZY TAPE DRIVE" font="~ NormalFontVeryBig" font-color="Cream" transparent="true" text-alignment="center" mouse-enabled="false"/>
+<view class="CTextLabel" origin="45, 76" size="670, 28" title="ANALOG TAPE SATURATOR" font="~ NormalFontBig" font-color="Amber" transparent="true" text-alignment="center" mouse-enabled="false"/>
+
+<view class="CKnob" control-tag="Sat" origin="70, 145" size="130, 130" transparent="true" opacity="0.9"/>
+<view class="CKnob" control-tag="Level" origin="235, 145" size="130, 130" transparent="true" opacity="0.9"/>
+<view class="CKnob" control-tag="Dry" origin="400, 145" size="130, 130" transparent="true" opacity="0.9"/>
+<view class="CTextLabel" origin="75, 278" size="120, 26" title="TAPE SAT" font="~ NormalFontBig" font-color="Amber" transparent="true" text-alignment="center"/>
+<view class="CTextLabel" origin="240, 278" size="120, 26" title="LEVEL" font="~ NormalFontBig" font-color="Amber" transparent="true" text-alignment="center"/>
+<view class="CTextLabel" origin="405, 278" size="120, 26" title="DRY" font="~ NormalFontBig" font-color="Amber" transparent="true" text-alignment="center"/>
+
+<view class="COnOffButton" control-tag="Gain" origin="82, 330" size="120, 46" transparent="false"/>
+<view class="CTextLabel" origin="82, 378" size="120, 22" title="GAIN: NORM / HIGH" font="~ NormalFont" font-color="Cream" transparent="true" text-alignment="center"/>
+<view class="CHorizontalSwitch" control-tag="Shift" origin="260, 330" size="220, 46" transparent="false"/>
+<view class="CTextLabel" origin="260, 378" size="220, 22" title="SHIFT: FLAT / HIGH / MID" font="~ NormalFont" font-color="Cream" transparent="true" text-alignment="center"/>
+
+<view class="CSlider" control-tag="Meter" origin="600, 145" size="28, 150" orientation="vertical" draw-back="true" draw-value="true" draw-value-color="Meter" back-color="Bg" mouse-enabled="false"/>
+<view class="CTextLabel" origin="558, 304" size="115, 24" title="OUTPUT" font="~ NormalFontBig" font-color="Amber" transparent="true" text-alignment="center"/>
+<view class="CTextButton" control-tag="Bypass" origin="570, 342" size="90, 52" title="BYPASS" font="~ NormalFontBig" text-color="Cream" frame-color="Amber" transparent="true"/>
+</template>
+<control-tags>
+<control-tag name="Sat" tag="300"/><control-tag name="Level" tag="301"/><control-tag name="Dry" tag="302"/>
+<control-tag name="Gain" tag="303"/><control-tag name="Shift" tag="304"/><control-tag name="Bypass" tag="305"/><control-tag name="Meter" tag="306"/>
+</control-tags><gradients/><variables/></vstgui-ui-description>

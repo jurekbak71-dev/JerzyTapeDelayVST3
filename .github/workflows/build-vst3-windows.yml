@@ -27,26 +27,39 @@ jobs:
 
       - name: Build Release
         shell: pwsh
-        run: cmake --build build --config Release --target JerzyTapeDelay --parallel
+        run: |
+          cmake --build build --config Release --target JerzyTapeDelay --parallel
+          cmake --build build --config Release --target JerzyTapeDrive --parallel
 
-      - name: Collect VST3 bundle
+      - name: Collect VST3 bundles
         shell: pwsh
         run: |
-          $plugin = Get-ChildItem -Path build -Recurse -Directory -Filter "JerzyTapeDelay.vst3" | Select-Object -First 1
-          if (-not $plugin) {
-            Write-Host "JerzyTapeDelay.vst3 not found. Nearby build outputs:"
-            Get-ChildItem -Path build -Recurse | Where-Object { $_.Name -match 'JerzyTapeDelay|vst3' } | Select-Object FullName
-            throw "VST3 bundle was not produced"
-          }
           New-Item -ItemType Directory -Force -Path artifact | Out-Null
-          Copy-Item -Recurse -Force $plugin.FullName artifact/JerzyTapeDelay.vst3
+
+          $delay = Get-ChildItem -Path build -Recurse -Directory -Filter "JerzyTapeDelay.vst3" | Select-Object -First 1
+          if (-not $delay) { throw "JerzyTapeDelay.vst3 was not produced" }
+          Copy-Item -Recurse -Force $delay.FullName artifact/JerzyTapeDelay.vst3
           Compress-Archive -Path artifact/JerzyTapeDelay.vst3 -DestinationPath JerzyTapeDelay_Windows_x64.zip -Force
 
-      - name: Upload ready plugin
+          $drive = Get-ChildItem -Path build -Recurse -Directory -Filter "JerzyTapeDrive.vst3" | Select-Object -First 1
+          if (-not $drive) { throw "JerzyTapeDrive.vst3 was not produced" }
+          Copy-Item -Recurse -Force $drive.FullName artifact/JerzyTapeDrive.vst3
+          Compress-Archive -Path artifact/JerzyTapeDrive.vst3 -DestinationPath JerzyTapeDrive_Windows_x64.zip -Force
+
+      - name: Upload Tape Delay
         uses: actions/upload-artifact@v4
         with:
           name: JerzyTapeDelay-Windows-x64
           path: |
             artifact/JerzyTapeDelay.vst3
             JerzyTapeDelay_Windows_x64.zip
+          if-no-files-found: error
+
+      - name: Upload Tape Drive
+        uses: actions/upload-artifact@v4
+        with:
+          name: JerzyTapeDrive-Windows-x64
+          path: |
+            artifact/JerzyTapeDrive.vst3
+            JerzyTapeDrive_Windows_x64.zip
           if-no-files-found: error
