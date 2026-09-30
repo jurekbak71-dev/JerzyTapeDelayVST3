@@ -1,6 +1,7 @@
 #include "tapedrive_controller.h"
 #include "tapedrive_params.h"
 #include "tapedrive_gui_views.h"
+#include "tapedrive_editor.h"
 #include "base/source/fstreamer.h"
 #include "public.sdk/source/vst/vstparameters.h"
 #include <cstring>
@@ -48,8 +49,9 @@ tresult PLUGIN_API TapeDriveController::setComponentState(IBStream*s){
 
 IPlugView* PLUGIN_API TapeDriveController::createView(const char*n){
  if(n&&std::strcmp(n,ViewType::kEditor)==0){
-   auto* editor = new VSTGUI::AspectRatioVST3Editor(this,"view","tapedrive_steel.uidesc");
-   editor->setMinZoomFactor(0.70);
+   auto* editor = new TapeDriveEditor(this,"view","tapedrive_steel.uidesc");
+   editor->setMinZoomFactor(0.75);
+   editor->setAllowedZoomFactors({0.75,1.0,1.25,1.5});
    return editor;
  }
  return nullptr;

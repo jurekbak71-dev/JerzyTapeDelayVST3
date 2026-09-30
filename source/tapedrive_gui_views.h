@@ -28,6 +28,12 @@ public:
     void draw(VSTGUI::CDrawContext* context) override;
 };
 
+class HardwarePanel : public VSTGUI::CKnob {
+public:
+    HardwarePanel(const VSTGUI::CRect& size, VSTGUI::IControlListener* listener, int32_t tag);
+    void draw(VSTGUI::CDrawContext* context) override;
+};
+
 void registerTapeDriveViews();
 
 }
