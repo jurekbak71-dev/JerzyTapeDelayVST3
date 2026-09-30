@@ -2,6 +2,7 @@
 #include "vstgui/uidescription/uiviewfactory.h"
 #include "vstgui/uidescription/uiviewcreator.h"
 #include "vstgui/uidescription/iviewcreator.h"
+#include "vstgui/lib/cdrawcontext.h"
 #include <cmath>
 
 using namespace VSTGUI;
@@ -77,7 +78,7 @@ void ChickenKnob::draw(CDrawContext* c)
 }
 
 AnalogMeter::AnalogMeter(const CRect& size, IControlListener* listener, int32_t tag)
-: CControl(size, listener, tag, nullptr)
+: CKnob(size, listener, tag, nullptr, nullptr)
 {
     setMin(0.f); setMax(1.f); setValue(0.f);
 }
@@ -138,7 +139,7 @@ class ChickenKnobCreator : public ViewCreatorAdapter {
 public:
     ChickenKnobCreator(){ UIViewFactory::registerViewCreator(*this); }
     IdStringPtr getViewName() const override { return "ChickenKnob"; }
-    IdStringPtr getBaseViewName() const override { return UIViewCreator::kCKnob; }
+    IdStringPtr getBaseViewName() const override { return "CKnob"; }
     CView* create(const UIAttributes&, const IUIDescription*) const override {
         return new ChickenKnob(CRect(0,0,100,100),nullptr,-1);
     }
@@ -148,7 +149,7 @@ class AnalogMeterCreator : public ViewCreatorAdapter {
 public:
     AnalogMeterCreator(){ UIViewFactory::registerViewCreator(*this); }
     IdStringPtr getViewName() const override { return "AnalogMeter"; }
-    IdStringPtr getBaseViewName() const override { return UIViewCreator::kCControl; }
+    IdStringPtr getBaseViewName() const override { return "CKnob"; }
     CView* create(const UIAttributes&, const IUIDescription*) const override {
         return new AnalogMeter(CRect(0,0,220,110),nullptr,-1);
     }
