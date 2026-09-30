@@ -13,8 +13,8 @@ enum : int32_t {
 void TapeDriveEditor::applyZoom(double factor)
 {
     setZoomFactor(factor);
-    const double abs = getAbsScaleFactor();
-    requestResize({1000.0 * abs, 680.0 * abs});
+    const double absScale = getAbsScaleFactor();
+    requestResize({1000.0 * absScale, 680.0 * absScale});
 }
 
 void TapeDriveEditor::valueChanged(VSTGUI::CControl* control)
@@ -28,7 +28,7 @@ void TapeDriveEditor::valueChanged(VSTGUI::CControl* control)
             default: break;
         }
     }
-    VSTGUI::AspectRatioVST3Editor::valueChanged(control);
+    VSTGUI::VST3Editor::valueChanged(control);
 }
 
 }

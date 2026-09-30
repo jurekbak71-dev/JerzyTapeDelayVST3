@@ -25,6 +25,9 @@ public:
             hp_z1[i]=hp_z2[i]=0.0;
             lp_z1[i]=lp_z2[i]=0.0;
             wearLP[i]=0.0;
+            tubeSag[i]=0.0;
+            tubeTone[i]=0.0;
+            transistorTone[i]=0.0;
             std::fill(wowBuffer[i].begin(),wowBuffer[i].end(),0.0);
             wowWrite[i]=0;
         }
@@ -36,12 +39,15 @@ public:
     void process(const Sample* const* in, Sample* const* out, int channels, int n,
                  double sat, double levelNorm, double dryNorm, int gainMode, int shiftMode,
                  double hpfNorm, double hpfResNorm, double lpfNorm, double lpfResNorm,
-                 double wowFlutterNorm, double& inputPeak, double& saturationPeak, double& outputPeak) {
+                 double wowFlutterNorm, int preampMode, double preampDriveNorm,
+                 double& inputPeak, double& saturationPeak, double& outputPeak) {
         channels=std::clamp(channels,1,numChannels);
         sat=std::clamp(sat,0.0,1.0);
         levelNorm=std::clamp(levelNorm,0.0,1.0);
         dryNorm=std::clamp(dryNorm,0.0,1.0);
         wowFlutterNorm=std::clamp(wowFlutterNorm,0.0,1.0);
+        preampDriveNorm=std::clamp(preampDriveNorm,0.0,1.0);
+        preampMode=std::clamp(preampMode,0,2);
 
         inputPeak=0.0; saturationPeak=0.0; outputPeak=0.0;
 
@@ -64,6 +70,12 @@ public:
         const double flutterInc=2.0*3.141592653589793*5.7/sampleRate;
         const double flutter2Inc=2.0*3.141592653589793*11.1/sampleRate;
 
+        const double tubeDrive=std::pow(10.0,(4.0+30.0*preampDriveNorm)/20.0);
+        const double transistorDrive=std::pow(10.0,(2.0+34.0*preampDriveNorm)/20.0);
+        const double tubeSagAtk=std::exp(-1.0/(0.018*sampleRate));
+        const double tubeToneA=std::exp(-2.0*3.141592653589793*(11500.0-3500.0*preampDriveNorm)/sampleRate);
+        const double transistorToneA=std::exp(-2.0*3.141592653589793*4200.0/sampleRate);
+
         for(int i=0;i<n;++i){
             const double modulation =
                 wowFlutterNorm*(2.8*std::sin(wowPhase)
@@ -75,12 +87,40 @@ public:
                 const double x = in && in[ch] ? static_cast<double>(in[ch][i]) : 0.0;
                 inputPeak=std::max(inputPeak,std::abs(x));
 
-                low[ch]=(1.0-lowA)*x+lowA*low[ch];
-                const double high=x-low[ch];
+                // PREAMP STAGE: OFF / TUBE / TRANSISTOR
+                double pre=x;
+                double preSat=0.0;
+                if(preampMode==1){
+                    // tube: soft asymmetry, even harmonics, sag and gentle HF rolloff
+                    const double absx=std::abs(pre);
+                    tubeSag[ch]=tubeSagAtk*tubeSag[ch]+(1.0-tubeSagAtk)*absx;
+                    const double sag=1.0/(1.0+tubeSag[ch]*(0.55+1.8*preampDriveNorm));
+                    const double z=pre*tubeDrive*sag;
+                    const double bias=0.10+0.12*preampDriveNorm;
+                    double y=std::tanh(z+bias)-std::tanh(bias);
+                    y+=0.10*preampDriveNorm*(y*y)*(y>=0.0?1.0:-0.45);
+                    y*=0.78/std::max(0.45,std::sqrt(tubeDrive)*0.22);
+                    tubeTone[ch]=(1.0-tubeToneA)*y+tubeToneA*tubeTone[ch];
+                    pre=0.72*y+0.28*tubeTone[ch];
+                    preSat=std::clamp(std::abs(z-y)/(std::abs(z)+0.25),0.0,1.0);
+                }else if(preampMode==2){
+                    // transistor: tighter, faster, more odd harmonics and harder knee
+                    transistorTone[ch]=(1.0-transistorToneA)*pre+transistorToneA*transistorTone[ch];
+                    const double presence=pre-transistorTone[ch];
+                    const double z=(pre+0.18*presence)*transistorDrive;
+                    const double soft=std::tanh(z*1.15);
+                    const double hard=std::clamp(z,-1.15,0.92);
+                    pre=(0.48*soft+0.52*hard)/(0.75+0.18*preampDriveNorm);
+                    pre+=0.045*preampDriveNorm*pre*pre*pre;
+                    preSat=std::clamp(std::abs(z-pre)/(std::abs(z)+0.22),0.0,1.0);
+                }
 
-                double shapedIn=x;
-                if(shiftMode==1) shapedIn=x+0.34*high;
-                else if(shiftMode==2) shapedIn=x+0.18*high+0.10*low[ch];
+                low[ch]=(1.0-lowA)*pre+lowA*low[ch];
+                const double high=pre-low[ch];
+
+                double shapedIn=pre;
+                if(shiftMode==1) shapedIn=pre+0.34*high;
+                else if(shiftMode==2) shapedIn=pre+0.18*high+0.10*low[ch];
 
                 const double a=std::abs(shapedIn);
                 const double coeff=a>env[ch]?atk:rel;
@@ -92,13 +132,15 @@ public:
                 const double soft=std::tanh(z+bias)-std::tanh(bias);
                 double wet=soft+0.08*sat*std::tanh(z*z*(z>=0?1.0:-1.0));
 
-                const double clipMetric=std::clamp(std::abs(z-soft)/(std::abs(z)+0.35),0.0,1.0);
-                saturationPeak=std::max(saturationPeak,clipMetric*std::min(1.0,0.25+1.15*sat));
+                const double tapeSat=std::clamp(std::abs(z-soft)/(std::abs(z)+0.35),0.0,1.0)
+                                     *std::min(1.0,0.25+1.15*sat);
+                saturationPeak=std::max(saturationPeak,std::max(preSat,tapeSat));
 
                 wet*=outGain;
                 dc[ch]=dcA*dc[ch]+(1.0-dcA)*wet;
                 wet-=dc[ch];
 
+                // DRY stays true dry, preamp/tape are in wet path
                 double y=wet+x*dryGain;
 
                 if(wowFlutterNorm>0.0001 && !wowBuffer[ch].empty()){
@@ -133,12 +175,10 @@ private:
         const double twoPi=6.2831853071795864769;
         return p>=twoPi?p-twoPi:p;
     }
-
     static double mapLog(double n,double lo,double hi){
         n=std::clamp(n,0.0,1.0);
         return lo*std::pow(hi/lo,n);
     }
-
     static double mapQ(double n){
         n=std::clamp(n,0.0,1.0);
         return 0.5+11.5*n;
@@ -180,11 +220,9 @@ private:
         if(b.empty()) return input;
         const size_t size=b.size();
         b[wowWrite[ch]]=input;
-
         double rp=static_cast<double>(wowWrite[ch])-delaySamples;
         while(rp<0.0) rp+=static_cast<double>(size);
         while(rp>=static_cast<double>(size)) rp-=static_cast<double>(size);
-
         const size_t i0=static_cast<size_t>(rp);
         const size_t i1=(i0+1)%size;
         const double frac=rp-static_cast<double>(i0);
@@ -198,6 +236,7 @@ private:
     double low[2]{},env[2]{},dc[2]{};
     double hp_z1[2]{},hp_z2[2]{},lp_z1[2]{},lp_z2[2]{};
     double wearLP[2]{};
+    double tubeSag[2]{},tubeTone[2]{},transistorTone[2]{};
     std::vector<double> wowBuffer[2];
     size_t wowWrite[2]{};
     double wowPhase=0.0,flutterPhase=0.0,flutter2Phase=1.7;

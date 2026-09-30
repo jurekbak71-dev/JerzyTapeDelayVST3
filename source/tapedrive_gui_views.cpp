@@ -272,8 +272,9 @@ void HardwarePanel::draw(CDrawContext* c)
     c->setFrameColor(CColor(188,135,57,255));
     c->setLineWidth(1.5);
     c->drawRect({35,112,965,302},kDrawFilledAndStroked);
-    c->drawRect({35,520,625,666},kDrawFilledAndStroked);
-    c->drawRect({642,520,965,666},kDrawFilledAndStroked);
+    c->drawRect({35,520,515,666},kDrawFilledAndStroked);
+    c->drawRect({525,520,755,666},kDrawFilledAndStroked);
+    c->drawRect({765,520,965,666},kDrawFilledAndStroked);
 
     setDirty(false);
 }

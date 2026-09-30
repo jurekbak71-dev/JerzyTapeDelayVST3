@@ -26,6 +26,8 @@ tresult PLUGIN_API TapeDriveController::initialize(FUnknown*c){
  add(STR16("LPF"),kLPFCutoffId,STR16("Hz"),1000,20000,20000,0);
  add(STR16("LPF Res"),kLPFResId,STR16("Q"),0.5,12.0,0.707,2);
  add(STR16("Wow Flutter"),kWowFlutterId,STR16("%"),0,100,0,1);
+ add(STR16("Preamp Mode"),kPreampModeId,STR16(""),0,2,0,0,2);
+ add(STR16("Preamp Drive"),kPreampDriveId,STR16("%"),0,100,20,1);
  add(STR16("Input Meter"),kInputMeterId,STR16(""),0,1,0,2,0,ParameterInfo::kIsReadOnly);
  add(STR16("Saturation Meter"),kSaturationMeterId,STR16(""),0,1,0,2,0,ParameterInfo::kIsReadOnly);
  add(STR16("Output Meter"),kDriveMeterId,STR16(""),0,1,0,2,0,ParameterInfo::kIsReadOnly);
@@ -35,7 +37,7 @@ tresult PLUGIN_API TapeDriveController::initialize(FUnknown*c){
 tresult PLUGIN_API TapeDriveController::setComponentState(IBStream*s){
  if(!s)return kResultFalse;
  IBStreamer b(s,kLittleEndian);
- float v[11]{};
+ float v[13]{};
  for(int i=0;i<6;++i) if(!b.readFloat(v[i])) return kResultFalse;
  setParamNormalized(kSatId,v[0]); setParamNormalized(kLevelId,v[1]); setParamNormalized(kDryId,v[2]);
  setParamNormalized(kGainModeId,v[3]); setParamNormalized(kShiftId,v[4]); setParamNormalized(kDriveBypassId,v[5]);
@@ -44,13 +46,14 @@ tresult PLUGIN_API TapeDriveController::setComponentState(IBStream*s){
  if(b.readFloat(v[8])) setParamNormalized(kLPFCutoffId,v[8]);
  if(b.readFloat(v[9])) setParamNormalized(kLPFResId,v[9]);
  if(b.readFloat(v[10])) setParamNormalized(kWowFlutterId,v[10]);
+ if(b.readFloat(v[11])) setParamNormalized(kPreampModeId,v[11]);
+ if(b.readFloat(v[12])) setParamNormalized(kPreampDriveId,v[12]);
  return kResultOk;
 }
 
 IPlugView* PLUGIN_API TapeDriveController::createView(const char*n){
  if(n&&std::strcmp(n,ViewType::kEditor)==0){
    auto* editor = new TapeDriveEditor(this,"view","tapedrive_steel.uidesc");
-   editor->setMinZoomFactor(0.75);
    editor->setAllowedZoomFactors({0.75,1.0,1.25,1.5});
    return editor;
  }

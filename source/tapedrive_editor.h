@@ -3,9 +3,9 @@
 
 namespace JerzyAudio {
 
-class TapeDriveEditor : public VSTGUI::AspectRatioVST3Editor {
+class TapeDriveEditor : public VSTGUI::VST3Editor {
 public:
-    using VSTGUI::AspectRatioVST3Editor::AspectRatioVST3Editor;
+    using VSTGUI::VST3Editor::VST3Editor;
     void valueChanged(VSTGUI::CControl* control) override;
 
 private:

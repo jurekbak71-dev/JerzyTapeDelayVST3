@@ -64,6 +64,8 @@ void TapeDriveProcessor::readChanges(IParameterChanges* c){
    case kLPFCutoffId:p.lpfCutoff=v;break;
    case kLPFResId:p.lpfRes=v;break;
    case kWowFlutterId:p.wowFlutter=v;break;
+   case kPreampModeId:p.preampMode=v;break;
+   case kPreampDriveId:p.preampDrive=v;break;
    default:break;
   }
  }
@@ -102,6 +104,7 @@ tresult PLUGIN_API TapeDriveProcessor::process(ProcessData& d){
  const bool bp=p.bypass>=0.5;
  const int gm=p.gainMode>=0.5?1:0;
  const int sm=std::clamp((int)std::lround(p.shift*2.0),0,2);
+ const int pm=std::clamp((int)std::lround(p.preampMode*2.0),0,2);
  double inPk=0.0,satPk=0.0,outPk=0.0;
 
  if(d.symbolicSampleSize==kSample32){
@@ -113,7 +116,7 @@ tresult PLUGIN_API TapeDriveProcessor::process(ProcessData& d){
     if(out[c]) for(int i=0;i<d.numSamples;++i) outPk=std::max(outPk,std::abs((double)out[c][i]));
    }
   }else{
-   dsp32.process(in,out,ch,d.numSamples,p.sat,p.level,p.dry,gm,sm,p.hpfCutoff,p.hpfRes,p.lpfCutoff,p.lpfRes,p.wowFlutter,inPk,satPk,outPk);
+   dsp32.process(in,out,ch,d.numSamples,p.sat,p.level,p.dry,gm,sm,p.hpfCutoff,p.hpfRes,p.lpfCutoff,p.lpfRes,p.wowFlutter,pm,p.preampDrive,inPk,satPk,outPk);
   }
  }else if(d.symbolicSampleSize==kSample64){
   auto**in=d.inputs[0].channelBuffers64; auto**out=d.outputs[0].channelBuffers64;
@@ -124,7 +127,7 @@ tresult PLUGIN_API TapeDriveProcessor::process(ProcessData& d){
     if(out[c]) for(int i=0;i<d.numSamples;++i) outPk=std::max(outPk,std::abs(out[c][i]));
    }
   }else{
-   dsp64.process(in,out,ch,d.numSamples,p.sat,p.level,p.dry,gm,sm,p.hpfCutoff,p.hpfRes,p.lpfCutoff,p.lpfRes,p.wowFlutter,inPk,satPk,outPk);
+   dsp64.process(in,out,ch,d.numSamples,p.sat,p.level,p.dry,gm,sm,p.hpfCutoff,p.hpfRes,p.lpfCutoff,p.lpfRes,p.wowFlutter,pm,p.preampDrive,inPk,satPk,outPk);
   }
  }
 
@@ -136,7 +139,7 @@ tresult PLUGIN_API TapeDriveProcessor::process(ProcessData& d){
 tresult PLUGIN_API TapeDriveProcessor::setState(IBStream*s){
  if(!s)return kResultFalse;
  IBStreamer b(s,kLittleEndian);
- float v[11]{};
+ float v[13]{};
  for(int i=0;i<6;++i) if(!b.readFloat(v[i])) return kResultFalse;
  p.sat=v[0]; p.level=v[1]; p.dry=v[2]; p.gainMode=v[3]; p.shift=v[4]; p.bypass=v[5];
  if(b.readFloat(v[6]))p.hpfCutoff=v[6];
@@ -144,15 +147,18 @@ tresult PLUGIN_API TapeDriveProcessor::setState(IBStream*s){
  if(b.readFloat(v[8]))p.lpfCutoff=v[8];
  if(b.readFloat(v[9]))p.lpfRes=v[9];
  if(b.readFloat(v[10]))p.wowFlutter=v[10];
+ if(b.readFloat(v[11]))p.preampMode=v[11];
+ if(b.readFloat(v[12]))p.preampDrive=v[12];
  return kResultOk;
 }
 
 tresult PLUGIN_API TapeDriveProcessor::getState(IBStream*s){
  if(!s)return kResultFalse;
  IBStreamer b(s,kLittleEndian);
- float v[11]={
+ float v[13]={
   (float)p.sat,(float)p.level,(float)p.dry,(float)p.gainMode,(float)p.shift,(float)p.bypass,
-  (float)p.hpfCutoff,(float)p.hpfRes,(float)p.lpfCutoff,(float)p.lpfRes,(float)p.wowFlutter
+  (float)p.hpfCutoff,(float)p.hpfRes,(float)p.lpfCutoff,(float)p.lpfRes,(float)p.wowFlutter,
+  (float)p.preampMode,(float)p.preampDrive
  };
  for(auto x:v) if(!b.writeFloat(x)) return kResultFalse;
  return kResultOk;
