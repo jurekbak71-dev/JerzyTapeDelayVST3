@@ -156,8 +156,95 @@ public:
 };
 
 static ChickenKnobCreator gChickenKnobCreator;
-static AnalogMeterCreator gAnalogMeterCreator;
+class ToggleSwitchCreator : public ViewCreatorAdapter {
+public:
+    ToggleSwitchCreator(){ UIViewFactory::registerViewCreator(*this); }
+    IdStringPtr getViewName() const override { return "ToggleSwitch"; }
+    IdStringPtr getBaseViewName() const override { return "CKnob"; }
+    CView* create(const UIAttributes&, const IUIDescription*) const override {
+        return new ToggleSwitch(CRect(0,0,70,100),nullptr,-1);
+    }
+};
 
+class ThreeWaySwitchCreator : public ViewCreatorAdapter {
+public:
+    ThreeWaySwitchCreator(){ UIViewFactory::registerViewCreator(*this); }
+    IdStringPtr getViewName() const override { return "ThreeWaySwitch"; }
+    IdStringPtr getBaseViewName() const override { return "CKnob"; }
+    CView* create(const UIAttributes&, const IUIDescription*) const override {
+        return new ThreeWaySwitch(CRect(0,0,70,100),nullptr,-1);
+    }
+};
+
+static AnalogMeterCreator gAnalogMeterCreator;
+static ToggleSwitchCreator gToggleSwitchCreator;
+static ThreeWaySwitchCreator gThreeWaySwitchCreator;
+
+}
+
+ToggleSwitch::ToggleSwitch(const CRect& size, IControlListener* listener, int32_t tag)
+: CKnob(size,listener,tag,nullptr,nullptr)
+{
+    setMin(0.f); setMax(1.f); setWheelInc(1.f);
+}
+
+void ToggleSwitch::draw(CDrawContext* c)
+{
+    CRect r(getViewSize());
+    const auto cx=(r.left+r.right)*0.5;
+    c->setDrawMode(kAntiAliasing | kNonIntegralMode);
+    CRect slot(cx-10,r.top+12,cx+10,r.bottom-12);
+    c->setFillColor(CColor(12,11,10,255));
+    c->setFrameColor(kKnobEdge);
+    c->setLineWidth(2);
+    c->drawRect(slot,kDrawFilledAndStroked);
+
+    const bool high=getValueNormalized()>=0.5f;
+    const double y=high ? r.top+28 : r.bottom-28;
+    c->setFrameColor(CColor(190,185,170,255));
+    c->setLineWidth(7);
+    c->drawLine(CPoint(cx,y),CPoint(cx,high?y+25:y-25));
+
+    CRect cap(cx-11,(high?y+20:y-30),cx+11,(high?y+42:y-8));
+    c->setFillColor(kCream);
+    c->setFrameColor(CColor(80,74,65,255));
+    c->setLineWidth(1.5);
+    c->drawEllipse(cap,kDrawFilledAndStroked);
+    setDirty(false);
+}
+
+ThreeWaySwitch::ThreeWaySwitch(const CRect& size, IControlListener* listener, int32_t tag)
+: CKnob(size,listener,tag,nullptr,nullptr)
+{
+    setMin(0.f); setMax(2.f); setWheelInc(1.f);
+}
+
+void ThreeWaySwitch::draw(CDrawContext* c)
+{
+    CRect r(getViewSize());
+    const auto cx=(r.left+r.right)*0.5;
+    c->setDrawMode(kAntiAliasing | kNonIntegralMode);
+    CRect slot(cx-10,r.top+10,cx+10,r.bottom-10);
+    c->setFillColor(CColor(12,11,10,255));
+    c->setFrameColor(kKnobEdge);
+    c->setLineWidth(2);
+    c->drawRect(slot,kDrawFilledAndStroked);
+
+    const int state=std::clamp((int)std::lround(getValue()),0,2);
+    double y=r.getCenter().y;
+    if(state==0) y=r.bottom-27;
+    else if(state==2) y=r.top+27;
+
+    c->setFrameColor(CColor(190,185,170,255));
+    c->setLineWidth(7);
+    c->drawLine(CPoint(cx,y),CPoint(cx,y-24));
+
+    CRect cap(cx-11,y-35,cx+11,y-13);
+    c->setFillColor(kCream);
+    c->setFrameColor(CColor(80,74,65,255));
+    c->setLineWidth(1.5);
+    c->drawEllipse(cap,kDrawFilledAndStroked);
+    setDirty(false);
 }
 
 void registerTapeDriveViews() {}
