@@ -16,6 +16,18 @@ public:
     void draw(VSTGUI::CDrawContext* context) override;
 };
 
+class ToggleSwitch : public VSTGUI::CKnob {
+public:
+    ToggleSwitch(const VSTGUI::CRect& size, VSTGUI::IControlListener* listener, int32_t tag);
+    void draw(VSTGUI::CDrawContext* context) override;
+};
+
+class ThreeWaySwitch : public VSTGUI::CKnob {
+public:
+    ThreeWaySwitch(const VSTGUI::CRect& size, VSTGUI::IControlListener* listener, int32_t tag);
+    void draw(VSTGUI::CDrawContext* context) override;
+};
+
 void registerTapeDriveViews();
 
 }
