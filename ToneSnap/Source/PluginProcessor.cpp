@@ -40,6 +40,7 @@ void ToneSnapAudioProcessor::prepareToPlay(double sampleRate, int)
     detectedMidi = -1.0f;
     targetPitchRatio = 1.0f;
     smoothedRatio = 1.0f;
+    shiftWet = 0.0f;
 }
 
 void ToneSnapAudioProcessor::releaseResources() {}
@@ -62,7 +63,9 @@ void ToneSnapAudioProcessor::analysePitch() noexcept
     for (int i = 0; i < detectorSize; ++i) energy += detector[static_cast<size_t>(i)] * detector[static_cast<size_t>(i)];
     if (energy / detectorSize < 0.000002) { detectedMidi = -1.0f; targetPitchRatio = 1.0f; return; }
 
-    for (int lag = minLag; lag <= maxLag; ++lag)
+    float previousScore = 1.0f;
+    bool foundVoicedMinimum = false;
+    for (int lag = minLag; lag <= maxLag; lag += 2)
     {
         double difference = 0.0, normA = 0.0, normB = 0.0;
         for (int i = 0; i < detectorSize - maxLag; i += 4)
@@ -75,9 +78,18 @@ void ToneSnapAudioProcessor::analysePitch() noexcept
         }
         const float score = static_cast<float>(difference / (normA + normB + 1.0e-12));
         if (score < best) { best = score; bestLag = lag; }
+        if (score > previousScore && previousScore < 0.20f)
+        {
+            best = previousScore;
+            bestLag = lag - 2;
+            foundVoicedMinimum = true;
+            break;
+        }
+        previousScore = score;
     }
 
-    if (bestLag == 0 || best > 0.32f) { detectedMidi = -1.0f; targetPitchRatio = 1.0f; return; }
+    if (bestLag == 0 || best > 0.32f || (best > 0.24f && !foundVoicedMinimum))
+    { detectedMidi = -1.0f; targetPitchRatio = 1.0f; return; }
     const float hz = static_cast<float>(currentSampleRate) / static_cast<float>(bestLag);
     const float measuredMidi = 69.0f + 12.0f * std::log2(hz / 440.0f);
     if (detectedMidi < 0.0f || std::abs(measuredMidi - detectedMidi) > 7.0f)
@@ -162,11 +174,14 @@ void ToneSnapAudioProcessor::processBlock(juce::AudioBuffer<float>& buffer, juce
 
         const float smoothing = 0.002f + (1.0f - parameters.getRawParameterValue("speed")->load()) * 0.02f;
         smoothedRatio += (targetPitchRatio - smoothedRatio) * smoothing;
+        const float wetTarget = juce::jlimit(0.0f, 1.0f, std::abs(smoothedRatio - 1.0f) * 100.0f);
+        shiftWet += (wetTarget - shiftWet) * 0.0015f;
         for (int ch = 0; ch < channels; ++ch)
         {
             const float dry = buffer.getSample(ch, i);
             const float shifted = shiftSample(ch, dry, smoothedRatio);
-            buffer.setSample(ch, i, dry + (shifted - dry) * mix);
+            const float corrected = dry + (shifted - dry) * shiftWet;
+            buffer.setSample(ch, i, dry + (corrected - dry) * mix);
         }
         shiftWrite = (shiftWrite + 1) % shiftBufferSize;
     }

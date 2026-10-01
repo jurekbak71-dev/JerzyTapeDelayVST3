@@ -48,7 +48,9 @@ private:
     int detectorWrite = 0;
     int samplesSinceAnalysis = 0;
     float detectedMidi = -1.0f;
+    float targetPitchRatio = 1.0f;
     float smoothedRatio = 1.0f;
+    float shiftWet = 0.0f;
     double currentSampleRate = 44100.0;
     int shiftWrite = 0;
     std::array<std::array<float, shiftBufferSize>, 2> shiftBuffers{};
