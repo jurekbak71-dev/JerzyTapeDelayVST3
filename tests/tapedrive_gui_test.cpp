@@ -109,7 +109,7 @@ int main(int argc,char** argv){try{
         checkPanel(view,controller,frame.window);frame.reject=false;
         std::cout<<"Real HWND GUI: DPI "<<dpi<<", all zoom buttons, parameter hit areas, bypass mouse clicks, direct host resize and rejection OK\n";
     }
-    view->removed();view->setFrame(nullptr);view=nullptr;
+    view->removed();view->setFrame(nullptr);scale=nullptr;view=nullptr;
     DestroyWindow(frame.window);controller->terminate();controller=nullptr;module.reset();CoUninitialize();
     std::cout<<"Native Tape Drive GUI integration OK\n";
 }catch(const std::exception& e){std::cerr<<e.what()<<'\n';return 1;}}
