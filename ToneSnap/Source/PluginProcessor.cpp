@@ -179,6 +179,8 @@ void ToneSnapAudioProcessor::processBlock(juce::AudioBuffer<float>& buffer, juce
                 std::array<const float*, 2> startPointers{};
                 for (int ch = 0; ch < channels; ++ch)
                     startPointers[static_cast<size_t>(ch)] = startupBuffer.getReadPointer(ch);
+                smoothedRatio = targetPitchRatio;
+                stretcher.setTransposeFactor(smoothedRatio);
                 stretcher.outputSeek(startPointers.data(), seekInputLength);
                 stretcherReady = true;
             }
