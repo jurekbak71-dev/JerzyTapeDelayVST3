@@ -25,6 +25,7 @@ przykładowe ustawienia; nie jest zrzutem okna DAW.
   Przełączniki zmieniają stan po kliknięciu; gałki obsługują przeciąganie,
   kółko myszy i reset do wartości domyślnej zgodnie z obsługą VSTGUI/DAW.
 - **UI SIZE**: 75 / 100 / 125 / 150%, z uwzględnieniem skali ekranu.
+  Ręczna zmiana rozmiaru okna zachowuje proporcje panelu i skaluje kontrolki.
 
 Tor mokry: wejście → kompresor optyczny → przedwzmacniacz → saturacja taśmy →
 transport Wow/Flutter → zużycie taśmy → OUTPUT → filtry wyjściowe.

@@ -1,5 +1,6 @@
 #include "../source/tapedrive_dsp.h"
 #include "../source/tapedrive_state.h"
+#include "../source/tapedrive_editor_geometry.h"
 #include <iostream>
 #include <limits>
 #include <stdexcept>
@@ -34,6 +35,14 @@ template<class T> Render<T> render(TapeDriveParams p,double sr,int block,bool si
 template<class T> double energy(const std::vector<T>& x){double e=0;for(size_t i=x.size()/2;i<x.size();++i)e+=x[i]*x[i];return e/(x.size()-x.size()/2);}
 template<class T> double difference(const std::vector<T>& a,const std::vector<T>& b){double e=0;for(size_t i=a.size()/2;i<a.size();++i){double d=a[i]-b[i];e+=d*d;}return e/(a.size()-a.size()/2);}
 int main(){try{
+    for(double dpi:{1.0,1.25,1.5,2.0})for(double zoom:{0.75,1.0,1.25,1.5}){
+        const auto w=TapeDriveEditorGeometry::pixelWidth(zoom,dpi);
+        const auto h=TapeDriveEditorGeometry::pixelHeight(zoom,dpi);
+        require(std::abs(TapeDriveEditorGeometry::zoomForWidth(w,dpi)-zoom)<1e-6,"UI zoom must apply monitor DPI only once");
+        require(std::abs(static_cast<double>(w)/h-1200.0/672.0)<0.002,"UI resize must preserve panel aspect ratio");
+    }
+    require(TapeDriveEditorGeometry::zoomForWidth(1,2)==0.75,"UI resize minimum ignored");
+    require(TapeDriveEditorGeometry::zoomForWidth(10000,2)==1.5,"UI resize maximum ignored");
     TapeDriveParams p;p.optoBypass=1;p.sat=0.0;p.level=2.0/3.0;
     auto clean=render<double>(p,48000,128);
     auto silence=render<double>(p,48000,128,true);

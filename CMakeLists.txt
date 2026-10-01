@@ -53,6 +53,7 @@ smtg_add_vst3plugin(JerzyTapeDrive
     source/tapedrive_processor.cpp
     source/tapedrive_controller.h
     source/tapedrive_controller.cpp
+    source/tapedrive_editor_geometry.h
     source/tapedrive_editor.h
     source/tapedrive_editor.cpp
     source/tapedrive_gui_views.h
