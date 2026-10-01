@@ -185,7 +185,7 @@ void ToneSnapAudioProcessor::processBlock(juce::AudioBuffer<float>& buffer, juce
             continue;
         }
 
-        const int count = juce::jmin({ maximumBlockSize, 64, samples - offset });
+        const int count = juce::jmin(maximumBlockSize, juce::jmin(64, samples - offset));
         const float speed = parameters.getRawParameterValue("speed")->load();
         const float timeConstant = 0.060f + (1.0f - speed) * 0.140f;
         const float smoothing = 1.0f - std::exp(-static_cast<float>(count) /
