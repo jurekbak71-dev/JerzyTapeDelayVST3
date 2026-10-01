@@ -6,6 +6,44 @@ namespace
 const juce::StringArray noteNames { "C", "C#", "D", "D#", "E", "F", "F#", "G", "G#", "A", "A#", "B" };
 const juce::StringArray scaleNames { "Chromatic", "Major", "Minor" };
 
+std::array<float, 5> makeEqCoefficients(double sampleRate, float frequency, float gainDb, int type)
+{
+    const float safeFrequency = juce::jlimit(20.0f, static_cast<float>(sampleRate * 0.42), frequency);
+    const float a = std::pow(10.0f, gainDb / 40.0f);
+    const float omega = juce::MathConstants<float>::twoPi * safeFrequency / static_cast<float>(sampleRate);
+    const float cosine = std::cos(omega);
+    const float sine = std::sin(omega);
+    const float alpha = 0.5f * sine * std::sqrt(2.0f);
+    const float beta = 2.0f * std::sqrt(a) * alpha;
+    float b0 = 1.0f, b1 = 0.0f, b2 = 0.0f, a0 = 1.0f, a1 = 0.0f, a2 = 0.0f;
+    if (type == 0)
+    {
+        b0 = a * ((a + 1.0f) - (a - 1.0f) * cosine + beta);
+        b1 = 2.0f * a * ((a - 1.0f) - (a + 1.0f) * cosine);
+        b2 = a * ((a + 1.0f) - (a - 1.0f) * cosine - beta);
+        a0 = (a + 1.0f) + (a - 1.0f) * cosine + beta;
+        a1 = -2.0f * ((a - 1.0f) + (a + 1.0f) * cosine);
+        a2 = (a + 1.0f) + (a - 1.0f) * cosine - beta;
+    }
+    else if (type == 1)
+    {
+        constexpr float q = 0.8f;
+        const float peakAlpha = sine / (2.0f * q);
+        b0 = 1.0f + peakAlpha * a; b1 = -2.0f * cosine; b2 = 1.0f - peakAlpha * a;
+        a0 = 1.0f + peakAlpha / a; a1 = -2.0f * cosine; a2 = 1.0f - peakAlpha / a;
+    }
+    else
+    {
+        b0 = a * ((a + 1.0f) + (a - 1.0f) * cosine + beta);
+        b1 = -2.0f * a * ((a - 1.0f) + (a + 1.0f) * cosine);
+        b2 = a * ((a + 1.0f) + (a - 1.0f) * cosine - beta);
+        a0 = (a + 1.0f) - (a - 1.0f) * cosine + beta;
+        a1 = 2.0f * ((a - 1.0f) - (a + 1.0f) * cosine);
+        a2 = (a + 1.0f) - (a - 1.0f) * cosine - beta;
+    }
+    const float invA0 = 1.0f / a0;
+    return { b0 * invA0, b1 * invA0, b2 * invA0, a1 * invA0, a2 * invA0 };
+}
 }
 
 ToneSnapAudioProcessor::ToneSnapAudioProcessor()
@@ -19,10 +57,29 @@ ToneSnapAudioProcessor::APVTS::ParameterLayout ToneSnapAudioProcessor::createPar
     APVTS::ParameterLayout layout;
     layout.add(std::make_unique<juce::AudioParameterChoice>("key", "Key", noteNames, 0));
     layout.add(std::make_unique<juce::AudioParameterChoice>("scale", "Scale", scaleNames, 1));
-    layout.add(std::make_unique<juce::AudioParameterFloat>("speed", "Retune", juce::NormalisableRange<float>(0.0f, 1.0f), 0.72f));
-    layout.add(std::make_unique<juce::AudioParameterFloat>("amount", "Amount", juce::NormalisableRange<float>(0.0f, 1.0f), 1.0f));
-    layout.add(std::make_unique<juce::AudioParameterFloat>("mix", "Mix", juce::NormalisableRange<float>(0.0f, 1.0f), 1.0f));
+    layout.add(std::make_unique<juce::AudioParameterFloat>("speed", "Speed", juce::NormalisableRange<float>(0.0f, 100.0f, 0.1f), 20.0f, "ms"));
+    layout.add(std::make_unique<juce::AudioParameterFloat>("amount", "Amount", juce::NormalisableRange<float>(0.0f, 100.0f, 0.1f), 100.0f, "%"));
+    layout.add(std::make_unique<juce::AudioParameterFloat>("mix", "Mix", juce::NormalisableRange<float>(0.0f, 100.0f, 0.1f), 100.0f, "%"));
+    layout.add(std::make_unique<juce::AudioParameterBool>("compEnabled", "Compressor", true));
+    layout.add(std::make_unique<juce::AudioParameterFloat>("compThreshold", "Comp Threshold", juce::NormalisableRange<float>(-36.0f, 0.0f, 0.1f), -18.0f, "dB"));
+    layout.add(std::make_unique<juce::AudioParameterFloat>("compRatio", "Comp Ratio", juce::NormalisableRange<float>(1.0f, 12.0f, 0.1f), 3.0f, ":1"));
+    layout.add(std::make_unique<juce::AudioParameterFloat>("compMakeup", "Comp Makeup", juce::NormalisableRange<float>(-6.0f, 12.0f, 0.1f), 0.0f, "dB"));
+    layout.add(std::make_unique<juce::AudioParameterBool>("eqEnabled", "Equalizer", true));
+    layout.add(std::make_unique<juce::AudioParameterFloat>("eqLow", "EQ Low", juce::NormalisableRange<float>(-12.0f, 12.0f, 0.1f), 0.0f, "dB"));
+    layout.add(std::make_unique<juce::AudioParameterFloat>("eqMid", "EQ Mid", juce::NormalisableRange<float>(-12.0f, 12.0f, 0.1f), 0.0f, "dB"));
+    layout.add(std::make_unique<juce::AudioParameterFloat>("eqHigh", "EQ High", juce::NormalisableRange<float>(-12.0f, 12.0f, 0.1f), 0.0f, "dB"));
+    layout.add(std::make_unique<juce::AudioParameterFloat>("outputGain", "Output", juce::NormalisableRange<float>(-12.0f, 12.0f, 0.1f), 0.0f, "dB"));
     return layout;
+}
+
+float ToneSnapAudioProcessor::Biquad::process(float input, float coefficientSmoothing) noexcept
+{
+    for (size_t i = 0; i < coefficients.size(); ++i)
+        coefficients[i] += (targetCoefficients[i] - coefficients[i]) * coefficientSmoothing;
+    const float output = coefficients[0] * input + coefficients[1] * x1 + coefficients[2] * x2
+                       - coefficients[3] * y1 - coefficients[4] * y2;
+    x2 = x1; x1 = input; y2 = y1; y1 = output;
+    return output;
 }
 
 void ToneSnapAudioProcessor::prepareToPlay(double sampleRate, int maximumExpectedSamplesPerBlock)
@@ -33,7 +90,23 @@ void ToneSnapAudioProcessor::prepareToPlay(double sampleRate, int maximumExpecte
     detectedMidi = -1.0f;
     targetPitchRatio = 1.0f;
     smoothedRatio = 1.0f;
-    smoothedMix = parameters.getRawParameterValue("mix")->load();
+    const auto initial = [this](const char* id) { return parameters.getRawParameterValue(id)->load(); };
+    const auto initialiseSmoother = [sampleRate](juce::SmoothedValue<float>& smoother, float value, double rampSeconds)
+    {
+        smoother.reset(sampleRate, rampSeconds);
+        smoother.setCurrentAndTargetValue(value);
+    };
+    initialiseSmoother(mixSmoother, initial("mix") * 0.01f, 0.01);
+    initialiseSmoother(speedSmoother, initial("speed"), 0.01);
+    initialiseSmoother(compThresholdSmoother, initial("compThreshold"), 0.02);
+    initialiseSmoother(compRatioSmoother, initial("compRatio"), 0.02);
+    initialiseSmoother(compMakeupSmoother, initial("compMakeup"), 0.02);
+    initialiseSmoother(compBlendSmoother, initial("compEnabled"), 0.02);
+    initialiseSmoother(eqBlendSmoother, initial("eqEnabled"), 0.02);
+    initialiseSmoother(outputGainSmoother, initial("outputGain"), 0.02);
+    compressorEnvelope.fill(0.0f);
+    inputPeak.store(0.0f, std::memory_order_relaxed);
+    outputPeak.store(0.0f, std::memory_order_relaxed);
     maximumBlockSize = juce::jmax(1, maximumExpectedSamplesPerBlock);
     const int channels = juce::jlimit(1, 2, getTotalNumOutputChannels());
     stretchedBuffer.setSize(channels, maximumBlockSize, false, true, true);
@@ -49,6 +122,8 @@ void ToneSnapAudioProcessor::prepareToPlay(double sampleRate, int maximumExpecte
     dryDelayBuffer.setSize(channels, dryDelayLength, false, true, true);
     dryDelayBuffer.clear();
     dryDelayWrite = 0;
+    for (auto& channel : eqFilters)
+        for (auto& filter : channel) filter.reset();
 }
 
 void ToneSnapAudioProcessor::releaseResources() {}
@@ -123,7 +198,7 @@ float ToneSnapAudioProcessor::tunedRatio() const noexcept
     if (detectedMidi < 0.0f) return 1.0f;
     const int key = static_cast<int>(parameters.getRawParameterValue("key")->load());
     const int scale = static_cast<int>(parameters.getRawParameterValue("scale")->load());
-    const float amount = parameters.getRawParameterValue("amount")->load();
+    const float amount = parameters.getRawParameterValue("amount")->load() * 0.01f;
     static constexpr std::array<int, 12> major { 0, 2, 4, 5, 7, 9, 11, -1, -1, -1, -1, -1 };
     static constexpr std::array<int, 12> minor { 0, 2, 3, 5, 7, 8, 10, -1, -1, -1, -1, -1 };
     const int nearestMidi = static_cast<int>(std::lround(detectedMidi));
@@ -152,13 +227,35 @@ void ToneSnapAudioProcessor::processBlock(juce::AudioBuffer<float>& buffer, juce
     juce::ScopedNoDenormals noDenormals;
     const int channels = juce::jmin(buffer.getNumChannels(), stretchedBuffer.getNumChannels());
     const int samples = buffer.getNumSamples();
-    const float mix = parameters.getRawParameterValue("mix")->load();
-    const float mixSmoothing = 1.0f - std::exp(-1.0f / (0.005f * static_cast<float>(currentSampleRate)));
+    const float mixTarget = parameters.getRawParameterValue("mix")->load() * 0.01f;
+    const float speedTarget = parameters.getRawParameterValue("speed")->load();
+    const float eqLowTarget = parameters.getRawParameterValue("eqLow")->load();
+    const float eqMidTarget = parameters.getRawParameterValue("eqMid")->load();
+    const float eqHighTarget = parameters.getRawParameterValue("eqHigh")->load();
+    mixSmoother.setTargetValue(mixTarget);
+    speedSmoother.setTargetValue(speedTarget);
+    compThresholdSmoother.setTargetValue(parameters.getRawParameterValue("compThreshold")->load());
+    compRatioSmoother.setTargetValue(parameters.getRawParameterValue("compRatio")->load());
+    compMakeupSmoother.setTargetValue(parameters.getRawParameterValue("compMakeup")->load());
+    compBlendSmoother.setTargetValue(parameters.getRawParameterValue("compEnabled")->load());
+    eqBlendSmoother.setTargetValue(parameters.getRawParameterValue("eqEnabled")->load());
+    outputGainSmoother.setTargetValue(parameters.getRawParameterValue("outputGain")->load());
+    for (int ch = 0; ch < channels; ++ch)
+    {
+        eqFilters[static_cast<size_t>(ch)][0].setTarget(makeEqCoefficients(currentSampleRate, 120.0f, eqLowTarget, 0));
+        eqFilters[static_cast<size_t>(ch)][1].setTarget(makeEqCoefficients(currentSampleRate, 1200.0f, eqMidTarget, 1));
+        eqFilters[static_cast<size_t>(ch)][2].setTarget(makeEqCoefficients(currentSampleRate, 8000.0f, eqHighTarget, 2));
+    }
+    const float coefficientSmoothing = 1.0f - std::exp(-1.0f / (0.02f * static_cast<float>(currentSampleRate)));
+    const float attackCoefficient = std::exp(-1.0f / (0.010f * static_cast<float>(currentSampleRate)));
+    const float releaseCoefficient = std::exp(-1.0f / (0.120f * static_cast<float>(currentSampleRate)));
+    float blockInputPeak = 0.0f;
     for (int i = 0; i < samples; ++i)
     {
         float detectorSample = 0.0f;
         for (int ch = 0; ch < channels; ++ch) detectorSample += buffer.getSample(ch, i);
         detectorSample /= static_cast<float>(juce::jmax(1, channels));
+        blockInputPeak = juce::jmax(blockInputPeak, std::abs(detectorSample));
         detector[static_cast<size_t>(detectorWrite)] = detectorSample;
         detectorWrite = (detectorWrite + 1) % detectorSize;
         if (++samplesSinceAnalysis >= 512) { analysePitch(); samplesSinceAnalysis = 0; }
@@ -175,13 +272,13 @@ void ToneSnapAudioProcessor::processBlock(juce::AudioBuffer<float>& buffer, juce
             for (int i = 0; i < count; ++i)
             {
                 const int dryRead = (dryDelayWrite - getLatencySamples() + dryDelayLength) % dryDelayLength;
+                const float mixValue = mixSmoother.getNextValue();
                 for (int ch = 0; ch < channels; ++ch)
                 {
                     const float input = buffer.getSample(ch, offset + i);
                     dryDelayBuffer.setSample(ch, dryDelayWrite, input);
-                    buffer.setSample(ch, offset + i, dryDelayBuffer.getSample(ch, dryRead) * (1.0f - smoothedMix));
+                    buffer.setSample(ch, offset + i, dryDelayBuffer.getSample(ch, dryRead) * (1.0f - mixValue));
                 }
-                smoothedMix += (mix - smoothedMix) * mixSmoothing;
                 dryDelayWrite = (dryDelayWrite + 1) % dryDelayLength;
             }
             startupInputCount += count;
@@ -200,8 +297,8 @@ void ToneSnapAudioProcessor::processBlock(juce::AudioBuffer<float>& buffer, juce
         }
 
         const int count = juce::jmin(maximumBlockSize, juce::jmin(64, samples - offset));
-        const float speed = parameters.getRawParameterValue("speed")->load();
-        const float timeConstant = 0.008f + (1.0f - speed) * 0.180f;
+        const float speedMs = speedSmoother.skip(count);
+        const float timeConstant = juce::jmax(0.002f, speedMs * 0.001f);
         const float smoothing = 1.0f - std::exp(-static_cast<float>(count) /
                                                  (timeConstant * static_cast<float>(currentSampleRate)));
         smoothedRatio += (targetPitchRatio - smoothedRatio) * smoothing;
@@ -218,19 +315,63 @@ void ToneSnapAudioProcessor::processBlock(juce::AudioBuffer<float>& buffer, juce
         for (int i = 0; i < count; ++i)
         {
             const int dryRead = (dryDelayWrite - getLatencySamples() + dryDelayLength) % dryDelayLength;
+            const float mixValue = mixSmoother.getNextValue();
             for (int ch = 0; ch < channels; ++ch)
             {
                 const float input = buffer.getSample(ch, offset + i);
                 dryDelayBuffer.setSample(ch, dryDelayWrite, input);
                 const float delayedDry = dryDelayBuffer.getSample(ch, dryRead);
                 const float wet = stretchedBuffer.getSample(ch, i);
-                buffer.setSample(ch, offset + i, delayedDry + (wet - delayedDry) * smoothedMix);
+                buffer.setSample(ch, offset + i, delayedDry + (wet - delayedDry) * mixValue);
             }
-            smoothedMix += (mix - smoothedMix) * mixSmoothing;
             dryDelayWrite = (dryDelayWrite + 1) % dryDelayLength;
         }
         offset += count;
     }
+
+    float blockOutputPeak = 0.0f;
+    for (int i = 0; i < samples; ++i)
+    {
+        float linkedPeak = 0.0f;
+        for (int ch = 0; ch < channels; ++ch)
+            linkedPeak = juce::jmax(linkedPeak, std::abs(buffer.getSample(ch, i)));
+        const float envelopeCoefficient = linkedPeak > compressorEnvelope[0] ? attackCoefficient : releaseCoefficient;
+        compressorEnvelope[0] = envelopeCoefficient * compressorEnvelope[0] + (1.0f - envelopeCoefficient) * linkedPeak;
+        const float envelopeDb = juce::Decibels::gainToDecibels(juce::jmax(compressorEnvelope[0], 1.0e-7f));
+        const float threshold = compThresholdSmoother.getNextValue();
+        const float ratio = juce::jmax(1.0f, compRatioSmoother.getNextValue());
+        const float over = envelopeDb - threshold;
+        constexpr float kneeDb = 6.0f;
+        float reductionDb = 0.0f;
+        if (over >= kneeDb * 0.5f)
+            reductionDb = over * (1.0f / ratio - 1.0f);
+        else if (over > -kneeDb * 0.5f)
+        {
+            const float kneePosition = over + kneeDb * 0.5f;
+            reductionDb = (1.0f / ratio - 1.0f) * kneePosition * kneePosition / (2.0f * kneeDb);
+        }
+        const float compGain = juce::Decibels::decibelsToGain(reductionDb + compMakeupSmoother.getNextValue());
+        const float compBlend = compBlendSmoother.getNextValue();
+        const float eqBlend = eqBlendSmoother.getNextValue();
+        const float outputGain = juce::Decibels::decibelsToGain(outputGainSmoother.getNextValue());
+        for (int ch = 0; ch < channels; ++ch)
+        {
+            float sample = buffer.getSample(ch, i);
+            const float compressed = sample * compGain;
+            sample += (compressed - sample) * compBlend;
+            float equalized = sample;
+            auto& filters = eqFilters[static_cast<size_t>(ch)];
+            for (auto& filter : filters) equalized = filter.process(equalized, coefficientSmoothing);
+            sample += (equalized - sample) * eqBlend;
+            sample *= outputGain;
+            buffer.setSample(ch, i, sample);
+            blockOutputPeak = juce::jmax(blockOutputPeak, std::abs(sample));
+        }
+    }
+    const float inputMeter = juce::jmax(blockInputPeak, inputPeak.load(std::memory_order_relaxed) * 0.90f);
+    const float outputMeter = juce::jmax(blockOutputPeak, outputPeak.load(std::memory_order_relaxed) * 0.90f);
+    inputPeak.store(inputMeter, std::memory_order_relaxed);
+    outputPeak.store(outputMeter, std::memory_order_relaxed);
 }
 
 juce::AudioProcessorEditor* ToneSnapAudioProcessor::createEditor()
