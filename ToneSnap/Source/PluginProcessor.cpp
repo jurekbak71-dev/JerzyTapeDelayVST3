@@ -1,4 +1,5 @@
 #include "PluginProcessor.h"
+#include "PluginEditor.h"
 
 namespace
 {
@@ -89,8 +90,6 @@ float ToneSnapAudioProcessor::tunedRatio() const noexcept
     const float speed = parameters.getRawParameterValue("speed")->load();
     static constexpr std::array<int, 12> major { 0, 2, 4, 5, 7, 9, 11, -1, -1, -1, -1, -1 };
     static constexpr std::array<int, 12> minor { 0, 2, 3, 5, 7, 8, 10, -1, -1, -1, -1, -1 };
-    if (scale == 0) return 1.0f;
-
     const int nearestMidi = static_cast<int>(std::lround(detectedMidi));
     float bestMidi = static_cast<float>(nearestMidi);
     float bestDistance = 100.0f;
@@ -98,9 +97,9 @@ float ToneSnapAudioProcessor::tunedRatio() const noexcept
     {
         const int candidate = nearestMidi + offset;
         const int pitchClass = ((candidate - key) % 12 + 12) % 12;
-        bool allowed = false;
+        bool allowed = scale == 0;
         if (scale == 1) allowed = std::find(major.begin(), major.begin() + 7, pitchClass) != major.begin() + 7;
-        else allowed = std::find(minor.begin(), minor.begin() + 7, pitchClass) != minor.begin() + 7;
+        else if (scale == 2) allowed = std::find(minor.begin(), minor.begin() + 7, pitchClass) != minor.begin() + 7;
         if (allowed && std::abs(static_cast<float>(candidate) - detectedMidi) < bestDistance)
         {
             bestMidi = static_cast<float>(candidate);
@@ -170,7 +169,7 @@ void ToneSnapAudioProcessor::processBlock(juce::AudioBuffer<float>& buffer, juce
 
 juce::AudioProcessorEditor* ToneSnapAudioProcessor::createEditor()
 {
-    return new juce::GenericAudioProcessorEditor(*this);
+    return new ToneSnapAudioProcessorEditor(*this);
 }
 
 void ToneSnapAudioProcessor::getStateInformation(juce::MemoryBlock& destData)

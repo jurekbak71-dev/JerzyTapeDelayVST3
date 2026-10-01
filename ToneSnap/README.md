@@ -1,11 +1,11 @@
 # ToneSnap — własny autotune VST3
 
-Pierwszy prototyp efektu do korekcji monofonicznego wokalu. Wybierasz tonację i tryb skali, a wtyczka wykrywa wysokość dźwięku i przesuwa ją w stronę najbliższej dozwolonej nuty. Interfejs na tym etapie to ogólny panel parametrów JUCE.
+Efekt do korekcji monofonicznego wokalu. Wybierasz tonację i tryb skali, a wtyczka wykrywa wysokość dźwięku i przesuwa ją w stronę najbliższej dozwolonej nuty. Interfejs ma własny układ: wybór tonacji i skali oraz pokrętła korekcji.
 
 ## Parametry
 
 - **Key** — tonacja od C do B.
-- **Scale** — chromatyczna, durowa lub molowa.
+- **Scale** — chromatyczna (najbliższy półton), durowa lub molowa.
 - **Retune** — szybkość korekcji.
 - **Amount** — siła korekcji.
 - **Mix** — proporcja sygnału przetworzonego.

@@ -18,6 +18,8 @@ juce_add_plugin(ToneSnap
 
 juce_generate_juce_header(ToneSnap)
 target_sources(ToneSnap PRIVATE
+    Source/PluginEditor.cpp
+    Source/PluginEditor.h
     Source/PluginProcessor.cpp
     Source/PluginProcessor.h)
 target_compile_features(ToneSnap PRIVATE cxx_std_17)

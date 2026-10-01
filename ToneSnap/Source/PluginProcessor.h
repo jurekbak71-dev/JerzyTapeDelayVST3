@@ -4,6 +4,8 @@
 #include <array>
 #include <vector>
 
+class ToneSnapAudioProcessorEditor;
+
 class ToneSnapAudioProcessor final : public juce::AudioProcessor
 {
 public:
@@ -33,6 +35,7 @@ public:
     APVTS parameters;
 
 private:
+    friend class ToneSnapAudioProcessorEditor;
     static APVTS::ParameterLayout createParameterLayout();
     void analysePitch() noexcept;
     float tunedRatio() const noexcept;
