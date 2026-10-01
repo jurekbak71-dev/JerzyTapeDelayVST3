@@ -1,0 +1,38 @@
+name: Build ToneSnap VST3 (Windows)
+
+on:
+  push:
+    branches:
+      - tonesnap-windows-20261001
+    paths:
+      - 'ToneSnap/**'
+      - '.github/workflows/tonesnap-windows.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    runs-on: windows-2022
+    steps:
+      - name: Check out source
+        uses: actions/checkout@v4
+
+      - name: Configure x64 Release
+        run: cmake -S ToneSnap -B build/ToneSnap -A x64
+
+      - name: Build VST3
+        run: cmake --build build/ToneSnap --config Release --target ToneSnap_VST3
+
+      - name: Package plugin
+        shell: pwsh
+        run: Compress-Archive -Path 'build/ToneSnap/ToneSnap_artefacts/Release/VST3/ToneSnap.vst3' -DestinationPath 'ToneSnap-Windows-x64-VST3.zip' -Force
+
+      - name: Upload VST3 artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: ToneSnap-Windows-x64-VST3
+          path: ToneSnap-Windows-x64-VST3.zip
+          if-no-files-found: error
+          retention-days: 14
