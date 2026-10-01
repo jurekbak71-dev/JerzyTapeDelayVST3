@@ -6,11 +6,6 @@ namespace
 const juce::StringArray noteNames { "C", "C#", "D", "D#", "E", "F", "F#", "G", "G#", "A", "A#", "B" };
 const juce::StringArray scaleNames { "Chromatic", "Major", "Minor" };
 
-float wrapIndex(float x, int size) noexcept
-{
-    x = std::fmod(x, static_cast<float>(size));
-    return x < 0.0f ? x + static_cast<float>(size) : x;
-}
 }
 
 ToneSnapAudioProcessor::ToneSnapAudioProcessor()
@@ -30,17 +25,24 @@ ToneSnapAudioProcessor::APVTS::ParameterLayout ToneSnapAudioProcessor::createPar
     return layout;
 }
 
-void ToneSnapAudioProcessor::prepareToPlay(double sampleRate, int)
+void ToneSnapAudioProcessor::prepareToPlay(double sampleRate, int maximumExpectedSamplesPerBlock)
 {
     currentSampleRate = sampleRate;
     detector.fill(0.0f);
-    for (auto& channel : shiftBuffers) channel.fill(0.0f);
-    shiftPhases.fill(0.0f);
-    detectorWrite = shiftWrite = samplesSinceAnalysis = 0;
+    detectorWrite = samplesSinceAnalysis = 0;
     detectedMidi = -1.0f;
     targetPitchRatio = 1.0f;
     smoothedRatio = 1.0f;
-    shiftWet = 0.0f;
+    maximumBlockSize = juce::jmax(1, maximumExpectedSamplesPerBlock);
+    const int channels = juce::jlimit(1, 2, getTotalNumOutputChannels());
+    stretchedBuffer.setSize(channels, maximumBlockSize, false, true, true);
+    stretcher.presetDefault(channels, static_cast<float>(sampleRate), true);
+    const int latency = stretcher.inputLatency() + stretcher.outputLatency();
+    setLatencySamples(latency);
+    dryDelayLength = latency + maximumBlockSize + 1;
+    dryDelayBuffer.setSize(channels, dryDelayLength, false, true, true);
+    dryDelayBuffer.clear();
+    dryDelayWrite = 0;
 }
 
 void ToneSnapAudioProcessor::releaseResources() {}
@@ -130,37 +132,10 @@ float ToneSnapAudioProcessor::tunedRatio() const noexcept
     return 1.0f + (correction - 1.0f) * retuneBlend;
 }
 
-float ToneSnapAudioProcessor::shiftSample(int channel, float input, float ratio) noexcept
-{
-    auto& data = shiftBuffers[static_cast<size_t>(channel)];
-    data[static_cast<size_t>(shiftWrite)] = input;
-    if (std::abs(ratio - 1.0f) < 0.0005f) return input;
-
-    const float direction = ratio > 1.0f ? -1.0f : 1.0f;
-    float& phase = shiftPhases[static_cast<size_t>(channel)];
-    phase += std::abs(ratio - 1.0f) / static_cast<float>(shiftSpan);
-    phase -= std::floor(phase);
-
-    const float phaseB = std::fmod(phase + 0.5f, 1.0f);
-    const float delayA = 32.0f + (direction < 0.0f ? 1.0f - phase : phase) * static_cast<float>(shiftSpan);
-    const float delayB = 32.0f + (direction < 0.0f ? 1.0f - phaseB : phaseB) * static_cast<float>(shiftSpan);
-    const float readA = wrapIndex(static_cast<float>(shiftWrite) - delayA, shiftBufferSize);
-    const float readB = wrapIndex(static_cast<float>(shiftWrite) - delayB, shiftBufferSize);
-    const auto interpolate = [&data](float position)
-    {
-        const int i0 = static_cast<int>(position);
-        const int i1 = (i0 + 1) % shiftBufferSize;
-        const float fraction = position - static_cast<float>(i0);
-        return data[static_cast<size_t>(i0)] + fraction * (data[static_cast<size_t>(i1)] - data[static_cast<size_t>(i0)]);
-    };
-    const float blend = 0.5f + 0.5f * std::cos(phase * juce::MathConstants<float>::twoPi);
-    return interpolate(readA) * (1.0f - blend) + interpolate(readB) * blend;
-}
-
 void ToneSnapAudioProcessor::processBlock(juce::AudioBuffer<float>& buffer, juce::MidiBuffer&)
 {
     juce::ScopedNoDenormals noDenormals;
-    const int channels = buffer.getNumChannels();
+    const int channels = juce::jmin(buffer.getNumChannels(), stretchedBuffer.getNumChannels());
     const int samples = buffer.getNumSamples();
     const float mix = parameters.getRawParameterValue("mix")->load();
     for (int i = 0; i < samples; ++i)
@@ -171,19 +146,42 @@ void ToneSnapAudioProcessor::processBlock(juce::AudioBuffer<float>& buffer, juce
         detector[static_cast<size_t>(detectorWrite)] = detectorSample;
         detectorWrite = (detectorWrite + 1) % detectorSize;
         if (++samplesSinceAnalysis >= 512) { analysePitch(); samplesSinceAnalysis = 0; }
+    }
 
-        const float smoothing = 0.002f + (1.0f - parameters.getRawParameterValue("speed")->load()) * 0.02f;
-        smoothedRatio += (targetPitchRatio - smoothedRatio) * smoothing;
-        const float wetTarget = juce::jlimit(0.0f, 1.0f, std::abs(smoothedRatio - 1.0f) * 100.0f);
-        shiftWet += (wetTarget - shiftWet) * 0.0015f;
+    const float speed = parameters.getRawParameterValue("speed")->load();
+    const float timeConstant = 0.003f + (1.0f - speed) * 0.050f;
+    const float smoothing = 1.0f - std::exp(-static_cast<float>(samples) /
+                                             (timeConstant * static_cast<float>(currentSampleRate)));
+    smoothedRatio += (targetPitchRatio - smoothedRatio) * smoothing;
+    stretcher.setTransposeFactor(smoothedRatio);
+
+    int offset = 0;
+    while (offset < samples)
+    {
+        const int count = juce::jmin(maximumBlockSize, samples - offset);
+        std::array<const float*, 2> inputPointers{};
+        std::array<float*, 2> outputPointers{};
         for (int ch = 0; ch < channels; ++ch)
         {
-            const float dry = buffer.getSample(ch, i);
-            const float shifted = shiftSample(ch, dry, smoothedRatio);
-            const float corrected = dry + (shifted - dry) * shiftWet;
-            buffer.setSample(ch, i, dry + (corrected - dry) * mix);
+            inputPointers[static_cast<size_t>(ch)] = buffer.getReadPointer(ch, offset);
+            outputPointers[static_cast<size_t>(ch)] = stretchedBuffer.getWritePointer(ch);
         }
-        shiftWrite = (shiftWrite + 1) % shiftBufferSize;
+        stretcher.process(inputPointers.data(), count, outputPointers.data(), count);
+
+        for (int i = 0; i < count; ++i)
+        {
+            const int dryRead = (dryDelayWrite - getLatencySamples() + dryDelayLength) % dryDelayLength;
+            for (int ch = 0; ch < channels; ++ch)
+            {
+                const float input = buffer.getSample(ch, offset + i);
+                dryDelayBuffer.setSample(ch, dryDelayWrite, input);
+                const float delayedDry = dryDelayBuffer.getSample(ch, dryRead);
+                const float wet = stretchedBuffer.getSample(ch, i);
+                buffer.setSample(ch, offset + i, delayedDry + (wet - delayedDry) * mix);
+            }
+            dryDelayWrite = (dryDelayWrite + 1) % dryDelayLength;
+        }
+        offset += count;
     }
 }
 

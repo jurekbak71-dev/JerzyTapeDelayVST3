@@ -1,8 +1,8 @@
 #pragma once
 
 #include <JuceHeader.h>
+#include <signalsmith-stretch/signalsmith-stretch.h>
 #include <array>
-#include <vector>
 
 class ToneSnapAudioProcessorEditor;
 
@@ -39,22 +39,21 @@ private:
     static APVTS::ParameterLayout createParameterLayout();
     void analysePitch() noexcept;
     float tunedRatio() const noexcept;
-    float shiftSample(int channel, float input, float ratio) noexcept;
 
     static constexpr int detectorSize = 2048;
-    static constexpr int shiftBufferSize = 4096;
-    static constexpr int shiftSpan = 1024;
     std::array<float, detectorSize> detector{};
     int detectorWrite = 0;
     int samplesSinceAnalysis = 0;
     float detectedMidi = -1.0f;
     float targetPitchRatio = 1.0f;
     float smoothedRatio = 1.0f;
-    float shiftWet = 0.0f;
     double currentSampleRate = 44100.0;
-    int shiftWrite = 0;
-    std::array<std::array<float, shiftBufferSize>, 2> shiftBuffers{};
-    std::array<float, 2> shiftPhases{};
+    int maximumBlockSize = 512;
+    int dryDelayLength = 1;
+    int dryDelayWrite = 0;
+    juce::AudioBuffer<float> stretchedBuffer;
+    juce::AudioBuffer<float> dryDelayBuffer;
+    signalsmith::stretch::SignalsmithStretch<float> stretcher;
 
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR(ToneSnapAudioProcessor)
 };

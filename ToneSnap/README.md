@@ -10,11 +10,11 @@ Efekt do korekcji monofonicznego wokalu. Wybierasz tonację i tryb skali, a wtyc
 - **Amount** — siła korekcji.
 - **Mix** — proporcja sygnału przetworzonego.
 
-To własny, eksperymentalny algorytm czasu rzeczywistego: detektor YIN/autokorelacyjny oraz proste przesuwanie wysokości metodą zmiennej linii opóźniającej. To wersja do rozwijania i odsłuchu, a nie jeszcze jakość komercyjnych autotune'ów. W szczególności przy dużych korektach mogą być słyszalne artefakty; korekcja działa najlepiej na pojedynczym wokalu.
+Korekcja wysokości korzysta z Signalsmith Stretch (licencja MIT), a detektor wysokości jest autorskim detektorem monofonicznym. Efekt zgłasza stałą latencję do hosta; przy monitoringu na żywo może być odczuwalna.
 
 ## Budowanie VST3 w Windows
 
-Potrzebne są Visual Studio 2022 z C++ Desktop Development, CMake 3.22+ oraz dostęp do pobrania JUCE 8.0.6 podczas konfiguracji.
+Potrzebne są Visual Studio 2022 z C++ Desktop Development, CMake 3.24+ oraz dostęp do pobrania JUCE 8.0.6 i Signalsmith Stretch podczas konfiguracji.
 
 W PowerShellu, w katalogu `ToneSnap`:
 
@@ -27,4 +27,4 @@ Wtyczka pojawi się w `build/ToneSnap_artefacts/Release/VST3/ToneSnap.vst3`. Sko
 
 ## Zależność
 
-Projekt korzysta z [JUCE](https://github.com/juce-framework/JUCE) przez CMake FetchContent. Sprawdź licencję JUCE przed dystrybucją lub sprzedażą wtyczki.
+Projekt korzysta z [JUCE](https://github.com/juce-framework/JUCE) i [Signalsmith Stretch](https://github.com/Signalsmith-Audio/signalsmith-stretch) przez CMake FetchContent. Sprawdź licencję JUCE przed dystrybucją lub sprzedażą wtyczki.
