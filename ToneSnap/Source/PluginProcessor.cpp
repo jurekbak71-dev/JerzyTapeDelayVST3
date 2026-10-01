@@ -4,6 +4,10 @@
 namespace
 {
 const juce::StringArray noteNames { "C", "C#", "D", "D#", "E", "F", "F#", "G", "G#", "A", "A#", "B" };
+const std::array<const char*, 12> noteParameterIds {
+    "noteC", "noteCs", "noteD", "noteDs", "noteE", "noteF",
+    "noteFs", "noteG", "noteGs", "noteA", "noteAs", "noteB"
+};
 const juce::StringArray scaleNames { "Chromatic", "Major", "Minor" };
 
 std::array<float, 5> makeEqCoefficients(double sampleRate, float frequency, float gainDb, int type)
@@ -57,6 +61,8 @@ ToneSnapAudioProcessor::APVTS::ParameterLayout ToneSnapAudioProcessor::createPar
     APVTS::ParameterLayout layout;
     layout.add(std::make_unique<juce::AudioParameterChoice>("key", "Key", noteNames, 0));
     layout.add(std::make_unique<juce::AudioParameterChoice>("scale", "Scale", scaleNames, 1));
+    for (size_t i = 0; i < noteNames.size(); ++i)
+        layout.add(std::make_unique<juce::AudioParameterBool>(noteParameterIds[i], noteNames[i], true));
     layout.add(std::make_unique<juce::AudioParameterFloat>("speed", "Speed", juce::NormalisableRange<float>(0.0f, 100.0f, 0.1f), 20.0f, "ms"));
     layout.add(std::make_unique<juce::AudioParameterFloat>("amount", "Amount", juce::NormalisableRange<float>(0.0f, 100.0f, 0.1f), 100.0f, "%"));
     layout.add(std::make_unique<juce::AudioParameterFloat>("mix", "Mix", juce::NormalisableRange<float>(0.0f, 100.0f, 0.1f), 100.0f, "%"));
@@ -199,6 +205,14 @@ float ToneSnapAudioProcessor::tunedRatio() const noexcept
     const int key = static_cast<int>(parameters.getRawParameterValue("key")->load());
     const int scale = static_cast<int>(parameters.getRawParameterValue("scale")->load());
     const float amount = parameters.getRawParameterValue("amount")->load() * 0.01f;
+    std::array<bool, 12> enabledNotes {};
+    bool anyEnabledNote = false;
+    for (size_t i = 0; i < enabledNotes.size(); ++i)
+    {
+        enabledNotes[i] = parameters.getRawParameterValue(noteParameterIds[i])->load() >= 0.5f;
+        anyEnabledNote = anyEnabledNote || enabledNotes[i];
+    }
+    if (!anyEnabledNote) return 1.0f;
     static constexpr std::array<int, 12> major { 0, 2, 4, 5, 7, 9, 11, -1, -1, -1, -1, -1 };
     static constexpr std::array<int, 12> minor { 0, 2, 3, 5, 7, 8, 10, -1, -1, -1, -1, -1 };
     const int nearestMidi = static_cast<int>(std::lround(detectedMidi));
@@ -211,6 +225,7 @@ float ToneSnapAudioProcessor::tunedRatio() const noexcept
         bool allowed = scale == 0;
         if (scale == 1) allowed = std::find(major.begin(), major.begin() + 7, pitchClass) != major.begin() + 7;
         else if (scale == 2) allowed = std::find(minor.begin(), minor.begin() + 7, pitchClass) != minor.begin() + 7;
+        allowed = allowed && enabledNotes[static_cast<size_t>((candidate % 12 + 12) % 12)];
         if (allowed && std::abs(static_cast<float>(candidate) - detectedMidi) < bestDistance)
         {
             bestMidi = static_cast<float>(candidate);

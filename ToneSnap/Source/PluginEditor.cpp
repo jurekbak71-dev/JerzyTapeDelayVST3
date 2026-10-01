@@ -11,6 +11,13 @@ const juce::Colour brass { 203, 177, 112 };
 const juce::Colour cream { 235, 224, 198 };
 const juce::Colour inkPanel { 27, 31, 29 };
 const juce::Colour red { 177, 76, 54 };
+const std::array<juce::String, 12> noteLabels {
+    "C", "C#", "D", "D#", "E", "F", "F#", "G", "G#", "A", "A#", "B"
+};
+const std::array<const char*, 12> noteParameterIds {
+    "noteC", "noteCs", "noteD", "noteDs", "noteE", "noteF",
+    "noteFs", "noteG", "noteGs", "noteA", "noteAs", "noteB"
+};
 
 void addLabel(juce::Label& label, const juce::String& text, float size = 11.0f,
               juce::Colour colour = ink, bool centred = false)
@@ -66,6 +73,20 @@ ToneSnapAudioProcessorEditor::ToneSnapAudioProcessorEditor(ToneSnapAudioProcesso
         combo->setColour(juce::PopupMenu::backgroundColourId, inkPanel);
         combo->setColour(juce::PopupMenu::textColourId, cream);
         combo->setColour(juce::PopupMenu::highlightedBackgroundColourId, brass.withAlpha(0.45f));
+    }
+
+    for (size_t i = 0; i < noteButtons.size(); ++i)
+    {
+        auto& button = noteButtons[i];
+        const bool isAccidental = noteLabels[i].containsChar('#');
+        button.setButtonText(noteLabels[i]);
+        button.setClickingTogglesState(true);
+        button.setColour(juce::TextButton::buttonColourId, isAccidental ? inkPanel : cream);
+        button.setColour(juce::TextButton::buttonOnColourId, brass);
+        button.setColour(juce::TextButton::textColourOffId, isAccidental ? cream : ink);
+        button.setColour(juce::TextButton::textColourOnId, inkPanel);
+        button.setColour(juce::TextButton::outlineColourId, juce::Colour(95, 84, 65));
+        addAndMakeVisible(button);
     }
 
     configureSlider(speedSlider, " ms");
@@ -127,6 +148,8 @@ ToneSnapAudioProcessorEditor::ToneSnapAudioProcessorEditor(ToneSnapAudioProcesso
     outputAttachment = std::make_unique<SliderAttachment>(state, "outputGain", outputSlider);
     compressorAttachment = std::make_unique<ButtonAttachment>(state, "compEnabled", compressorButton);
     equalizerAttachment = std::make_unique<ButtonAttachment>(state, "eqEnabled", equalizerButton);
+    for (size_t i = 0; i < noteAttachments.size(); ++i)
+        noteAttachments[i] = std::make_unique<ButtonAttachment>(state, noteParameterIds[i], noteButtons[i]);
     startTimerHz(30);
 }
 
@@ -162,6 +185,12 @@ void ToneSnapAudioProcessorEditor::resized()
     scaleLabel.setBounds(scaledBounds(103, 295, 210, 14));
     keyBox.setBounds(scaledBounds(103, 262, 97, 38));
     scaleBox.setBounds(scaledBounds(103, 310, 210, 36));
+    for (size_t i = 0; i < noteButtons.size(); ++i)
+    {
+        const int row = static_cast<int>(i / 6);
+        const int column = static_cast<int>(i % 6);
+        noteButtons[i].setBounds(scaledBounds(103.0f + column * 34.0f, 378.0f + row * 29.0f, 30.0f, 25.0f));
+    }
 
     speedSlider.setBounds(scaledBounds(423, 282, 154, 151));
     amountSlider.setBounds(scaledBounds(670, 290, 82, 85));
@@ -237,18 +266,17 @@ void ToneSnapAudioProcessorEditor::paint(juce::Graphics& g)
 
     g.setColour(ink);
     g.setFont(juce::Font(9.0f, juce::Font::bold));
-    g.drawText("NOTE FILTER", 103, 357, 180, 17, juce::Justification::centredLeft);
-    const std::array<juce::String, 7> noteNames { "C", "D", "E", "F", "G", "A", "B" };
-    for (int i = 0; i < 7; ++i)
-    {
-        const float x = 103.0f + i * 27.0f;
-        g.setColour(inkPanel); g.fillRoundedRectangle(x, 380, 25, 34, 2.0f);
-        g.setColour(cream); g.setFont(juce::Font(8.0f, juce::Font::bold));
-        g.drawText(noteNames[static_cast<size_t>(i)], x, 388, 25, 22, juce::Justification::centred);
-        g.setColour(brass); g.fillEllipse(x + 9.5f, 420, 6, 6);
-    }
+    g.drawText("NOTE FILTER  ·  CLICK TO ENABLE / DISABLE", 103, 357, 220, 17, juce::Justification::centredLeft);
+    juce::String allowedNotes;
+    for (size_t i = 0; i < noteLabels.size(); ++i)
+        if (processor.parameters.getRawParameterValue(noteParameterIds[i])->load() >= 0.5f)
+        {
+            if (!allowedNotes.isEmpty()) allowedNotes += "  ";
+            allowedNotes += noteLabels[i];
+        }
     g.setColour(ink); g.setFont(juce::Font(8.0f, juce::Font::bold));
-    g.drawText("ACTIVE NOTES  ·  KEY FILTER", 103, 440, 205, 18, juce::Justification::centredLeft);
+    g.drawText(allowedNotes.isEmpty() ? "NO NOTES ENABLED — CORRECTION BYPASSED" : "ENABLED: " + allowedNotes,
+               103, 439, 220, 18, juce::Justification::centredLeft, true);
 
     g.setColour(ink);
     g.setFont(juce::Font(9.0f, juce::Font::bold));

@@ -31,6 +31,7 @@ private:
     ToneSnapAudioProcessor& processor;
     AnalogLookAndFeel analogLookAndFeel;
     juce::ComboBox keyBox, scaleBox;
+    std::array<juce::TextButton, 12> noteButtons;
     juce::Slider speedSlider, amountSlider, mixSlider;
     juce::Slider thresholdSlider, ratioSlider, makeupSlider;
     juce::Slider lowSlider, midSlider, highSlider, outputSlider;
@@ -43,6 +44,7 @@ private:
     std::unique_ptr<SliderAttachment> thresholdAttachment, ratioAttachment, makeupAttachment;
     std::unique_ptr<SliderAttachment> lowAttachment, midAttachment, highAttachment, outputAttachment;
     std::unique_ptr<ButtonAttachment> compressorAttachment, equalizerAttachment;
+    std::array<std::unique_ptr<ButtonAttachment>, 12> noteAttachments;
 
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR(ToneSnapAudioProcessorEditor)
 };

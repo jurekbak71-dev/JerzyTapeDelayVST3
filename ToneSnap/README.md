@@ -6,6 +6,7 @@ Efekt do korekcji monofonicznego wokalu. Wybierasz tonację i tryb skali, a wtyc
 
 - **Key** — tonacja od C do B.
 - **Scale** — chromatyczna (najbliższy półton), durowa lub molowa.
+- **Note Filter** — 12 przycisków C–B; kliknięcie nuty wycisza ją z puli dozwolonych celów korekcji. Filtr działa razem z tonacją i skalą. Do własnej skali ustaw `Chromatic`, a następnie wyłącz nieużywane nuty. Wyłączenie wszystkich nut omija korekcję wysokości.
 - **Speed** — czas reakcji korekcji w milisekundach: 0 ms daje najszybsze, wyraźnie słyszalne przejścia; większe wartości łagodzą korekcję.
 - **Amount** — siła korekcji.
 - **Mix** — proporcja sygnału przetworzonego.
