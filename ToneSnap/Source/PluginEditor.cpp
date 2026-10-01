@@ -85,7 +85,6 @@ ToneSnapAudioProcessorEditor::ToneSnapAudioProcessorEditor(ToneSnapAudioProcesso
         button.setColour(juce::TextButton::buttonOnColourId, brass);
         button.setColour(juce::TextButton::textColourOffId, isAccidental ? cream : ink);
         button.setColour(juce::TextButton::textColourOnId, inkPanel);
-        button.setColour(juce::TextButton::outlineColourId, juce::Colour(95, 84, 65));
         addAndMakeVisible(button);
     }
 

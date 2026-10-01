@@ -61,8 +61,8 @@ ToneSnapAudioProcessor::APVTS::ParameterLayout ToneSnapAudioProcessor::createPar
     APVTS::ParameterLayout layout;
     layout.add(std::make_unique<juce::AudioParameterChoice>("key", "Key", noteNames, 0));
     layout.add(std::make_unique<juce::AudioParameterChoice>("scale", "Scale", scaleNames, 1));
-    for (size_t i = 0; i < noteNames.size(); ++i)
-        layout.add(std::make_unique<juce::AudioParameterBool>(noteParameterIds[i], noteNames[i], true));
+    for (int i = 0; i < noteNames.size(); ++i)
+        layout.add(std::make_unique<juce::AudioParameterBool>(noteParameterIds[static_cast<size_t>(i)], noteNames[i], true));
     layout.add(std::make_unique<juce::AudioParameterFloat>("speed", "Speed", juce::NormalisableRange<float>(0.0f, 100.0f, 0.1f), 20.0f, "ms"));
     layout.add(std::make_unique<juce::AudioParameterFloat>("amount", "Amount", juce::NormalisableRange<float>(0.0f, 100.0f, 0.1f), 100.0f, "%"));
     layout.add(std::make_unique<juce::AudioParameterFloat>("mix", "Mix", juce::NormalisableRange<float>(0.0f, 100.0f, 0.1f), 100.0f, "%"));
