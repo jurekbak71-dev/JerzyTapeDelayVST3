@@ -47,6 +47,7 @@ smtg_add_vst3plugin(JerzyTapeDrive
     source/version.h
     source/tapedrive_ids.h
     source/tapedrive_params.h
+    source/tapedrive_state.h
     source/tapedrive_dsp.h
     source/tapedrive_processor.h
     source/tapedrive_processor.cpp
@@ -57,17 +58,26 @@ smtg_add_vst3plugin(JerzyTapeDrive
     source/tapedrive_gui_views.h
     source/tapedrive_gui_views.cpp
     source/tapedrive_entry.cpp
-    resource/tapedrive_steel.uidesc
+    resource/tapedrive_vintage.uidesc
 )
 target_link_libraries(JerzyTapeDrive PRIVATE sdk vstgui_support)
 target_compile_features(JerzyTapeDrive PUBLIC cxx_std_17)
 smtg_target_configure_version_file(JerzyTapeDrive)
 smtg_target_add_plugin_resources(JerzyTapeDrive
     RESOURCES
-        resource/tapedrive_steel.uidesc
+        resource/tapedrive_vintage.uidesc
+        resource/tapedrive_vintage_background.jpg
 )
 
 if(SMTG_MAC)
     smtg_target_set_bundle(JerzyTapeDelay BUNDLE_IDENTIFIER "pl.jerzyaudio.tapedelay" COMPANY_NAME "Jerzy Audio")
     smtg_target_set_bundle(JerzyTapeDrive BUNDLE_IDENTIFIER "pl.jerzyaudio.tapedrive" COMPANY_NAME "Jerzy Audio")
+endif()
+
+include(CTest)
+if(BUILD_TESTING)
+    add_executable(TapeDriveDSPTests tests/tapedrive_test.cpp)
+    add_executable(TapeDelayDSPTests tests/dsp_smoke_test.cpp)
+    add_test(NAME TapeDriveDSP COMMAND TapeDriveDSPTests)
+    add_test(NAME TapeDelayDSP COMMAND TapeDelayDSPTests)
 endif()

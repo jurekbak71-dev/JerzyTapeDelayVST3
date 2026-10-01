@@ -1,308 +1,168 @@
 #include "tapedrive_gui_views.h"
+#include "tapedrive_params.h"
 #include "vstgui/uidescription/uiviewfactory.h"
 #include "vstgui/uidescription/uiviewcreator.h"
 #include "vstgui/uidescription/iviewcreator.h"
 #include "vstgui/lib/cdrawcontext.h"
+#include "vstgui/lib/cgraphicspath.h"
+#include "vstgui/lib/cgradient.h"
+#include "vstgui/lib/cfont.h"
 #include <algorithm>
 #include <cmath>
 
 using namespace VSTGUI;
-
 namespace JerzyAudio {
-
-static const CColor kSteelBase(76,79,78,255);
-static const CColor kSteelDark(35,36,35,255);
-static const CColor kSteelLight(126,129,126,255);
-static const CColor kKnobBlack(16,15,14,255);
-static const CColor kKnobEdge(112,106,95,255);
-static const CColor kCream(236,217,181,255);
-static const CColor kAmber(224,148,43,255);
-static const CColor kMeterFace(234,195,122,255);
-static const CColor kMeterDark(63,41,20,255);
-static const CColor kRed(190,48,32,255);
-
-static CPoint rotatedPoint(double cx,double cy,double x,double y,double a)
-{
-    const double ca=std::cos(a), sa=std::sin(a);
-    return {cx + x*ca - y*sa, cy + x*sa + y*ca};
+namespace {
+const CColor amber(230,160,78),cream(236,217,181),black(15,14,12),edge(133,112,80);
+void ellipse(CDrawContext* c,double x,double y,double radius,CColor fill,CColor frame){
+    c->setFillColor(fill); c->setFrameColor(frame); c->setLineWidth(1.0);
+    c->drawEllipse({x-radius,y-radius,x+radius,y+radius},kDrawFilledAndStroked);
+}
+void gradientRect(CDrawContext* c,const CRect& r,CColor a,CColor b){
+    auto* path=c->createGraphicsPath();
+    if(!path)return;
+    path->addRect(r);
+    auto* gradient=CGradient::create(0,1,a,b);
+    if(gradient){ c->fillLinearGradient(path,*gradient,{r.left,r.top},{r.left,r.bottom}); gradient->forget(); }
+    path->forget();
+}
+void text(CDrawContext* c,const char* s,const CRect& r,double size,CColor color){
+    c->setFont(kNormalFont,size); c->setFontColor(color); c->drawString(s,r,kCenterText);
+}
+void metalKnob(CDrawContext* c,const CRect& r,double value){
+    const double x=r.getCenter().x,y=r.getCenter().y;
+    const double radius=std::min(r.getWidth(),r.getHeight())*0.39;
+    c->setDrawMode(kAntiAliasing|kNonIntegralMode);
+    for(int i=0;i<=10;++i){
+        const double a=(135.0+27.0*i)*Constants::pi/180.0;
+        c->setFrameColor(amber); c->setLineWidth(i==5?2.2:1.5);
+        c->drawLine({x+std::cos(a)*radius*1.11,y+std::sin(a)*radius*1.11},
+                    {x+std::cos(a)*radius*1.27,y+std::sin(a)*radius*1.27});
+    }
+    ellipse(c,x+2,y+4,radius+2,CColor(0,0,0,130),black);
+    ellipse(c,x,y,radius,CColor(43,39,33),edge);
+    // Rubber grip scallops surrounding a spun-metal centre.
+    for(int i=0;i<18;++i){
+        const double a=2.0*Constants::pi*i/18.0;
+        ellipse(c,x+radius*0.82*std::cos(a),y+radius*0.82*std::sin(a),radius*0.18,CColor(23,22,20),CColor(48,44,39));
+    }
+    ellipse(c,x,y,radius*0.76,CColor(103,93,79),CColor(186,171,146));
+    CDrawContext::PointList wedge;
+    const double metalRadius=radius*0.70;
+    for(int i=0;i<120;++i){
+        const double a=2.0*Constants::pi*i/120.0;
+        const double next=a+2.0*Constants::pi/120.0;
+        const auto shade=static_cast<uint8_t>(std::clamp(130.0+55.0*std::cos(2.0*a+0.6)+15.0*std::cos(6.0*a),55.0,215.0));
+        c->setFillColor(CColor(shade,static_cast<uint8_t>(shade*0.96),static_cast<uint8_t>(shade*0.88)));
+        wedge={{x,y},{x+metalRadius*std::cos(a),y+metalRadius*std::sin(a)},
+                       {x+metalRadius*std::cos(next),y+metalRadius*std::sin(next)}};
+        c->drawPolygon(wedge,kDrawFilled);
+    }
+    for(int i=1;i<8;++i){
+        c->setFrameColor(CColor(235,222,200,22)); c->setLineWidth(0.5);
+        const double rr=metalRadius*i/8.0;
+        c->drawEllipse({x-rr,y-rr,x+rr,y+rr},kDrawStroked);
+    }
+    const double a=(135.0+270.0*std::clamp(value,0.0,1.0))*Constants::pi/180.0;
+    c->setFrameColor(cream); c->setLineWidth(std::max(2.0,radius*0.065));
+    c->drawLine({x+radius*0.61*std::cos(a),y+radius*0.61*std::sin(a)},
+                {x+radius*0.98*std::cos(a),y+radius*0.98*std::sin(a)});
+}
 }
 
-ChickenKnob::ChickenKnob(const CRect& size, IControlListener* listener, int32_t tag)
-: CKnob(size, listener, tag, nullptr, nullptr)
-{
-    setStartAngle(static_cast<float>(Constants::pi * 0.75));
-    setRangeAngle(static_cast<float>(Constants::pi * 1.5));
+ChickenKnob::ChickenKnob(const CRect& r,IControlListener* l,int32_t tag):CKnob(r,l,tag,nullptr,nullptr){
+    setStartAngle(static_cast<float>(Constants::pi*0.75));
+    setRangeAngle(static_cast<float>(Constants::pi*1.5));
     setWheelInc(0.01f);
 }
+void ChickenKnob::draw(CDrawContext* c){metalKnob(c,getViewSize(),getValueNormalized());setDirty(false);}
 
-void ChickenKnob::draw(CDrawContext* c)
-{
-    CRect r(getViewSize());
-    const double cx=(r.left+r.right)*0.5;
-    const double cy=(r.top+r.bottom)*0.5;
-    const double radius=std::min(r.getWidth(),r.getHeight())*0.43;
-
-    c->setDrawMode(kAntiAliasing | kNonIntegralMode);
-
-    // metal mounting washer
-    CRect washer(cx-radius,cy-radius,cx+radius,cy+radius);
-    c->setFillColor(CColor(44,43,40,255));
-    c->setFrameColor(kSteelLight);
-    c->setLineWidth(2.0);
-    c->drawEllipse(washer,kDrawFilledAndStroked);
-
-    CRect dark(washer);
-    dark.inset(radius*0.12,radius*0.12);
-    c->setFillColor(kKnobBlack);
-    c->setFrameColor(CColor(6,6,6,255));
-    c->drawEllipse(dark,kDrawFilledAndStroked);
-
-    // real chicken-head silhouette
-    const double v=std::clamp(static_cast<double>(getValueNormalized()),0.0,1.0);
-    const double a=(135.0 + 270.0*v) * Constants::pi / 180.0;
-    const double L=radius*0.92;
-    const double rear=radius*0.32;
-    const double half=radius*0.20;
-
-    CDrawContext::PointList body{
-        rotatedPoint(cx,cy,-rear,-half,a),
-        rotatedPoint(cx,cy, L*0.66,-half*0.70,a),
-        rotatedPoint(cx,cy, L,0,a),
-        rotatedPoint(cx,cy, L*0.66, half*0.70,a),
-        rotatedPoint(cx,cy,-rear, half,a)
-    };
-    c->setFillColor(CColor(24,22,19,255));
-    c->setFrameColor(kCream);
-    c->setLineWidth(1.6);
-    c->drawPolygon(body,kDrawFilledAndStroked);
-
-    // ivory pointer insert
-    CDrawContext::PointList pointer{
-        rotatedPoint(cx,cy,L*0.45,-radius*0.045,a),
-        rotatedPoint(cx,cy,L*0.86,0,a),
-        rotatedPoint(cx,cy,L*0.45, radius*0.045,a)
-    };
-    c->setFillColor(kCream);
-    c->setFrameColor(CColor(108,75,34,255));
-    c->setLineWidth(1.0);
-    c->drawPolygon(pointer,kDrawFilledAndStroked);
-
-    CRect hub(cx-radius*0.12,cy-radius*0.12,cx+radius*0.12,cy+radius*0.12);
-    c->setFillColor(kAmber);
-    c->setFrameColor(kCream);
-    c->setLineWidth(1.0);
-    c->drawEllipse(hub,kDrawFilledAndStroked);
-
-    setDirty(false);
-}
-
-AnalogMeter::AnalogMeter(const CRect& size, IControlListener* listener, int32_t tag)
-: CKnob(size, listener, tag, nullptr, nullptr)
-{
-    setMin(0.f); setMax(1.f); setValue(0.f);
-}
-
-void AnalogMeter::draw(CDrawContext* c)
-{
-    CRect r(getViewSize());
-    c->setDrawMode(kAntiAliasing | kNonIntegralMode);
-
-    CRect outer(r);
-    c->setFillColor(CColor(24,22,19,255));
-    c->setFrameColor(CColor(145,129,99,255));
-    c->setLineWidth(3.0);
-    c->drawRect(outer,kDrawFilledAndStroked);
-
-    CRect face(r); face.inset(8,8);
-    c->setFillColor(kMeterFace);
-    c->setFrameColor(CColor(92,64,30,255));
-    c->setLineWidth(1.5);
-    c->drawRect(face,kDrawFilledAndStroked);
-
-    const double cx=(face.left+face.right)*0.5;
-    const double baseY=face.bottom-10;
-    const double radius=std::min(face.getWidth()*0.43,face.getHeight()*0.92);
-
-    for(int i=0;i<=12;++i){
-        const double t=i/12.0;
-        const double deg=205.0 + 130.0*t;
-        const double a=deg*Constants::pi/180.0;
-        const double r1=radius*(i%2?0.77:0.70);
-        const double r2=radius*0.89;
-        c->setFrameColor(i>=10?kRed:kMeterDark);
-        c->setLineWidth(i%2?1.0:1.8);
-        c->drawLine({cx+std::cos(a)*r1,baseY+std::sin(a)*r1},
-                    {cx+std::cos(a)*r2,baseY+std::sin(a)*r2});
-    }
-
-    const double v=std::clamp(static_cast<double>(getValueNormalized()),0.0,1.0);
-    const double a=(205.0 + 130.0*v)*Constants::pi/180.0;
-    c->setFrameColor(CColor(83,24,14,255));
-    c->setLineWidth(2.5);
-    c->drawLine({cx,baseY},{cx+std::cos(a)*radius*0.79,baseY+std::sin(a)*radius*0.79});
-
-    CRect pivot(cx-5,baseY-5,cx+5,baseY+5);
-    c->setFillColor(CColor(68,42,20,255));
-    c->drawEllipse(pivot,kDrawFilled);
-    setDirty(false);
-}
-
-ToggleSwitch::ToggleSwitch(const CRect& size, IControlListener* listener, int32_t tag)
-: CKnob(size,listener,tag,nullptr,nullptr)
-{
-    setMin(0.f); setMax(1.f); setWheelInc(1.f);
-}
-
-void ToggleSwitch::draw(CDrawContext* c)
-{
-    CRect r(getViewSize());
-    const double cx=(r.left+r.right)*0.5;
-    c->setDrawMode(kAntiAliasing | kNonIntegralMode);
-
-    CRect plate(r); plate.inset(8,5);
-    c->setFillColor(CColor(54,54,51,255));
-    c->setFrameColor(kSteelLight);
-    c->setLineWidth(1.5);
-    c->drawRect(plate,kDrawFilledAndStroked);
-
-    CRect slot(cx-8,r.top+16,cx+8,r.bottom-16);
-    c->setFillColor(CColor(8,8,8,255));
-    c->setFrameColor(CColor(120,115,104,255));
-    c->drawRect(slot,kDrawFilledAndStroked);
-
-    const bool high=getValueNormalized()>=0.5f;
-    const double pivotY=r.getCenter().y;
-    const double endY=high ? r.top+24 : r.bottom-24;
-    c->setFrameColor(CColor(208,207,198,255));
-    c->setLineWidth(7);
-    c->drawLine({cx,pivotY},{cx,endY});
-
-    CRect cap(cx-11,endY-11,cx+11,endY+11);
-    c->setFillColor(kCream);
-    c->setFrameColor(CColor(70,66,58,255));
-    c->drawEllipse(cap,kDrawFilledAndStroked);
-    setDirty(false);
-}
-
-ThreeWaySwitch::ThreeWaySwitch(const CRect& size, IControlListener* listener, int32_t tag)
-: CKnob(size,listener,tag,nullptr,nullptr)
-{
-    setMin(0.f); setMax(2.f); setWheelInc(1.f);
-}
-
-void ThreeWaySwitch::draw(CDrawContext* c)
-{
-    CRect r(getViewSize());
-    const double cx=(r.left+r.right)*0.5;
-    c->setDrawMode(kAntiAliasing | kNonIntegralMode);
-
-    CRect plate(r); plate.inset(8,5);
-    c->setFillColor(CColor(54,54,51,255));
-    c->setFrameColor(kSteelLight);
-    c->setLineWidth(1.5);
-    c->drawRect(plate,kDrawFilledAndStroked);
-
-    CRect slot(cx-8,r.top+14,cx+8,r.bottom-14);
-    c->setFillColor(CColor(8,8,8,255));
-    c->setFrameColor(CColor(120,115,104,255));
-    c->drawRect(slot,kDrawFilledAndStroked);
-
-    const int state=std::clamp(static_cast<int>(std::lround(getValue())),0,2);
-    double endY=r.getCenter().y;
-    if(state==0) endY=r.bottom-23;
-    else if(state==2) endY=r.top+23;
-
-    const double pivotY=r.getCenter().y;
-    c->setFrameColor(CColor(208,207,198,255));
-    c->setLineWidth(7);
-    c->drawLine({cx,pivotY},{cx,endY});
-
-    CRect cap(cx-11,endY-11,cx+11,endY+11);
-    c->setFillColor(kCream);
-    c->setFrameColor(CColor(70,66,58,255));
-    c->drawEllipse(cap,kDrawFilledAndStroked);
-    setDirty(false);
-}
-
-HardwarePanel::HardwarePanel(const CRect& size, IControlListener* listener, int32_t tag)
-: CKnob(size,listener,tag,nullptr,nullptr)
-{
+AnalogMeter::AnalogMeter(const CRect& r,IControlListener* l,int32_t tag):CKnob(r,l,tag,nullptr,nullptr){
     setMouseEnabled(false);
 }
-
-void HardwarePanel::draw(CDrawContext* c)
-{
-    CRect r(getViewSize());
-    c->setDrawMode(kAntiAliasing | kNonIntegralMode);
-
-    c->setFillColor(kSteelBase);
-    c->setFrameColor(CColor(25,25,24,255));
-    c->setLineWidth(3);
+void AnalogMeter::draw(CDrawContext* c){
+    const CRect r(getViewSize());
+    c->setDrawMode(kAntiAliasing|kNonIntegralMode);
+    c->setFillColor(black);c->setFrameColor(edge);c->setLineWidth(2);
     c->drawRect(r,kDrawFilledAndStroked);
-
-    // brushed-steel texture
-    for(int y=0;y<static_cast<int>(r.getHeight());y+=4){
-        const uint8_t v=static_cast<uint8_t>(86 + ((y/4)%3)*5);
-        c->setFrameColor(CColor(v,v+1,v,105));
-        c->setLineWidth(1);
-        c->drawLine({r.left+2,r.top+y},{r.right-2,r.top+y});
+    CRect face(r);face.inset(6,6);
+    gradientRect(c,face,CColor(157,90,35),CColor(255,225,154));
+    const double cx=face.getCenter().x,cy=face.bottom-7;
+    const double radius=std::min(face.getWidth()*0.48,face.getHeight()*0.86);
+    for(int i=0;i<=10;++i){
+        const double a=(210+12*i)*Constants::pi/180.0;
+        c->setFrameColor(i>=8?CColor(191,47,25):CColor(61,37,18));c->setLineWidth(i%2?1:1.6);
+        c->drawLine({cx+radius*0.77*std::cos(a),cy+radius*0.77*std::sin(a)},
+                    {cx+radius*0.94*std::cos(a),cy+radius*0.94*std::sin(a)});
     }
+    text(c,"-20     -10      -3      0   +3",{face.left,face.top+6,face.right,face.top+19},9,CColor(60,34,14));
+    text(c,"VU",{face.left,face.bottom-27,face.right,face.bottom-11},13,CColor(60,34,14));
+    const double a=(210+120*std::clamp(static_cast<double>(getValueNormalized()),0.0,1.0))*Constants::pi/180.0;
+    c->setFrameColor(CColor(81,27,15));c->setLineWidth(2);
+    c->drawLine({cx,cy},{cx+radius*0.87*std::cos(a),cy+radius*0.87*std::sin(a)});
+    ellipse(c,cx,cy,3,CColor(63,38,18),CColor(63,38,18));setDirty(false);
+}
 
-    CRect inner(r); inner.inset(12,12);
-    c->setFrameColor(CColor(158,154,143,255));
-    c->setLineWidth(2);
-    c->drawRect(inner,kDrawStroked);
-
-    auto screw=[&](double x,double y){
-        CRect s(x-7,y-7,x+7,y+7);
-        c->setFillColor(CColor(172,170,161,255));
-        c->setFrameColor(CColor(55,55,52,255));
-        c->drawEllipse(s,kDrawFilledAndStroked);
-        c->setFrameColor(CColor(70,70,66,255));
-        c->setLineWidth(1.5);
-        c->drawLine({x-4,y+4},{x+4,y-4});
-    };
-    screw(r.left+24,r.top+24);
-    screw(r.right-24,r.top+24);
-    screw(r.left+24,r.bottom-24);
-    screw(r.right-24,r.bottom-24);
-
-    // engraved section plates
-    c->setFillColor(CColor(39,37,34,170));
-    c->setFrameColor(CColor(188,135,57,255));
-    c->setLineWidth(1.5);
-    c->drawRect({35,112,965,302},kDrawFilledAndStroked);
-    c->drawRect({35,520,515,666},kDrawFilledAndStroked);
-    c->drawRect({525,520,755,666},kDrawFilledAndStroked);
-    c->drawRect({765,520,965,666},kDrawFilledAndStroked);
-
+ToggleSwitch::ToggleSwitch(const CRect& r,IControlListener* l,int32_t tag):CKnob(r,l,tag,nullptr,nullptr){setMin(0);setMax(1);setWheelInc(1);}
+CMouseEventResult ToggleSwitch::onMouseDown(CPoint&,const CButtonState& buttons){
+    if(!buttons.isLeftButton())return kMouseEventNotHandled;
+    beginEdit();setValueNormalized(getValueNormalized()<0.5f?1.f:0.f);valueChanged();invalid();endEdit();
+    return kMouseDownEventHandledButDontNeedMovedOrUpEvents;
+}
+void ToggleSwitch::draw(CDrawContext* c){
+    const CRect r(getViewSize());const auto p=r.getCenter();
+    c->setDrawMode(kAntiAliasing|kNonIntegralMode);
+    ellipse(c,p.x,p.y,15,CColor(91,80,63),edge);
+    ellipse(c,p.x,p.y,11,black,cream);
+    const double end=p.y+(getValueNormalized()>=0.5f?-11:11);
+    c->setLineWidth(7);c->setFrameColor(CColor(182,167,142));c->drawLine(p,{p.x,end});
+    ellipse(c,p.x,end,6,CColor(221,207,179),edge);setDirty(false);
+}
+ThreeWaySwitch::ThreeWaySwitch(const CRect& r,IControlListener* l,int32_t tag):ToggleSwitch(r,l,tag){setMax(2);}
+CMouseEventResult ThreeWaySwitch::onMouseDown(CPoint&,const CButtonState& buttons){
+    if(!buttons.isLeftButton())return kMouseEventNotHandled;
+    const int current=static_cast<int>(std::lround(getValueNormalized()*2.f));
+    beginEdit();setValueNormalized(static_cast<float>((current+1)%3)*0.5f);valueChanged();invalid();endEdit();
+    return kMouseDownEventHandledButDontNeedMovedOrUpEvents;
+}
+void ThreeWaySwitch::draw(CDrawContext* c){
+    const CRect r(getViewSize());const auto p=r.getCenter();
+    c->setDrawMode(kAntiAliasing|kNonIntegralMode);
+    ellipse(c,p.x,p.y,15,CColor(91,80,63),edge);ellipse(c,p.x,p.y,11,black,cream);
+    const double end=p.y+11*(1.0-2.0*getValueNormalized());
+    c->setLineWidth(7);c->setFrameColor(CColor(182,167,142));c->drawLine(p,{p.x,end});
+    ellipse(c,p.x,end,6,CColor(221,207,179),edge);setDirty(false);
+}
+void BypassButton::draw(CDrawContext* c){
+    CRect r(getViewSize());const double x=r.getCenter().x,y=r.getCenter().y+7;
+    const double radius=std::min(r.getWidth(),r.getHeight())*0.29;
+    c->setDrawMode(kAntiAliasing|kNonIntegralMode);
+    const bool bypass=getValueNormalized()>=0.5f;
+    ellipse(c,x,r.top+9,7,CColor(85,41,15),edge);
+    ellipse(c,x,r.top+9,4,bypass?CColor(255,193,71):CColor(63,42,24),edge);
+    metalKnob(c,{x-radius*1.25,y-radius*1.25,x+radius*1.25,y+radius*1.25},0.5);
     setDirty(false);
 }
-
-namespace {
-
-template <typename T>
-class SimpleCreator : public ViewCreatorAdapter {
-public:
-    SimpleCreator(const char* name,const char* base):name(name),base(base){ UIViewFactory::registerViewCreator(*this); }
-    IdStringPtr getViewName() const override { return name; }
-    IdStringPtr getBaseViewName() const override { return base; }
-    CView* create(const UIAttributes&, const IUIDescription*) const override {
-        return new T(CRect(0,0,100,100),nullptr,-1);
-    }
-private:
-    const char* name;
-    const char* base;
-};
-
-static SimpleCreator<ChickenKnob> gChicken("ChickenKnob","CKnob");
-static SimpleCreator<AnalogMeter> gMeter("AnalogMeter","CKnob");
-static SimpleCreator<ToggleSwitch> gToggle("ToggleSwitch","CKnob");
-static SimpleCreator<ThreeWaySwitch> gThree("ThreeWaySwitch","CKnob");
-static SimpleCreator<HardwarePanel> gPanel("HardwarePanel","CKnob");
-
+HardwarePanel::HardwarePanel(const CRect& r,IControlListener* l,int32_t tag):CKnob(r,l,tag,nullptr,nullptr){setMouseEnabled(false);}
+void HardwarePanel::draw(CDrawContext* c){
+    c->setDrawMode(kAntiAliasing|kNonIntegralMode);
+    c->setFrameColor(CColor(169,113,58,130));c->setLineWidth(1);
+    c->drawLine({40,397},{720,397});c->drawLine({735,235},{735,547});
+    c->drawLine({40,551},{1160,551});c->drawLine({760,381},{1160,381});
+    setDirty(false);
 }
-
-void registerTapeDriveViews() {}
-
+namespace {
+template<class T> class SimpleCreator : public ViewCreatorAdapter {
+public:
+    SimpleCreator(const char* name):name(name){UIViewFactory::registerViewCreator(*this);}
+    IdStringPtr getViewName() const override{return name;}
+    IdStringPtr getBaseViewName() const override{return "CKnob";}
+    CView* create(const UIAttributes&,const IUIDescription*) const override{return new T(CRect(0,0,100,100),nullptr,-1);}
+private:const char* name;
+};
+SimpleCreator<ChickenKnob> knob("ChickenKnob");SimpleCreator<AnalogMeter> meter("AnalogMeter");
+SimpleCreator<ToggleSwitch> toggle("ToggleSwitch");SimpleCreator<ThreeWaySwitch> three("ThreeWaySwitch");
+SimpleCreator<BypassButton> bypass("BypassButton");SimpleCreator<HardwarePanel> panel("HardwarePanel");
+}
+void registerTapeDriveViews(){}
 }

@@ -2,6 +2,8 @@ name: Build Windows VST3
 
 on:
   workflow_dispatch:
+  pull_request:
+    branches: [ main ]
   push:
     branches: [ main ]
 
@@ -30,6 +32,12 @@ jobs:
         run: |
           cmake --build build --config Release --target JerzyTapeDelay --parallel
           cmake --build build --config Release --target JerzyTapeDrive --parallel
+
+      - name: DSP regression tests
+        shell: pwsh
+        run: |
+          cmake --build build --config Release --target TapeDriveDSPTests TapeDelayDSPTests --parallel
+          ctest --test-dir build -C Release --output-on-failure -R "^Tape(Drive|Delay)DSP$"
 
       - name: Collect VST3 bundles
         shell: pwsh

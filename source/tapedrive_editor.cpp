@@ -12,9 +12,10 @@ enum : int32_t {
 
 void TapeDriveEditor::applyZoom(double factor)
 {
+    if (factor == getZoomFactor()) return;
     setZoomFactor(factor);
     const double absScale = getAbsScaleFactor();
-    requestResize({1000.0 * absScale, 680.0 * absScale});
+    requestResize({1200.0 * absScale, 672.0 * absScale});
 }
 
 void TapeDriveEditor::valueChanged(VSTGUI::CControl* control)

@@ -2,6 +2,8 @@
 #include <algorithm>
 #include <cmath>
 #include <vector>
+#include <cstdint>
+#include "tapedrive_params.h"
 
 namespace JerzyAudio {
 
@@ -31,25 +33,40 @@ public:
             std::fill(wowBuffer[i].begin(),wowBuffer[i].end(),0.0);
             wowWrite[i]=0;
         }
-        wowPhase=0.0;
-        flutterPhase=0.0;
-        flutter2Phase=1.7;
+        randomState=0x4a65727au;
+        wowMotion={}; flutterMotion={};
+        smoothWow=smoothFlutter=smoothAge=0.0;
+        optoFast=optoSlow=optoReduction=0.0;
+        smoothOpto=0.0; smoothMakeup=1.0; smoothOptoMix=0.0;
+        for(int ch=0;ch<2;++ch){
+            hissLP[ch]=crackle[ch]=dropout[ch]=dropoutTarget[ch]=0.0;
+            dropoutLeft[ch]=0;
+        }
     }
 
     void process(const Sample* const* in, Sample* const* out, int channels, int n,
-                 double sat, double levelNorm, double dryNorm, int gainMode, int shiftMode,
-                 double hpfNorm, double hpfResNorm, double lpfNorm, double lpfResNorm,
-                 double wowFlutterNorm, int preampMode, double preampDriveNorm,
-                 double& inputPeak, double& saturationPeak, double& outputPeak) {
+                 const TapeDriveParams& p,
+                 double& inputPeak, double& saturationPeak, double& outputPeak,
+                 double& reductionPeak) {
+        double sat=p.sat, levelNorm=p.level, dryNorm=p.dry;
+        const int gainMode=p.gainMode>=0.5?1:0;
+        const int shiftMode=std::clamp(static_cast<int>(std::lround(p.shift*2.0)),0,2);
+        int preampMode=std::clamp(static_cast<int>(std::lround(p.preampMode*2.0)),0,2);
+        double preampDriveNorm=p.preampDrive;
+        const double wowTarget=std::clamp(p.wowFlutter,0.0,1.0);
+        const double flutterTarget=std::clamp(p.flutter,0.0,1.0);
+        const double ageTarget=std::clamp(p.tapeAge,0.0,1.0);
+        const double optoTarget=std::clamp(p.optoAmount,0.0,1.0);
+        const double makeupTarget=p.optoBypass>=0.5?1.0:std::pow(10.0,(-12.0+24.0*std::clamp(p.optoMakeup,0.0,1.0))/20.0);
         channels=std::clamp(channels,1,numChannels);
         sat=std::clamp(sat,0.0,1.0);
         levelNorm=std::clamp(levelNorm,0.0,1.0);
         dryNorm=std::clamp(dryNorm,0.0,1.0);
-        wowFlutterNorm=std::clamp(wowFlutterNorm,0.0,1.0);
+
         preampDriveNorm=std::clamp(preampDriveNorm,0.0,1.0);
         preampMode=std::clamp(preampMode,0,2);
 
-        inputPeak=0.0; saturationPeak=0.0; outputPeak=0.0;
+        inputPeak=0.0; saturationPeak=0.0; outputPeak=0.0; reductionPeak=0.0;
 
         const double driveDb = (gainMode ? 12.0 + 30.0*sat : 22.0*sat);
         const double drive = std::pow(10.0,driveDb/20.0);
@@ -61,14 +78,17 @@ public:
         const double rel = std::exp(-1.0/(0.090*sampleRate));
         const double dcA = std::exp(-2.0*3.141592653589793*18.0/sampleRate);
 
-        Biquad hp = makeHighPass(mapLog(hpfNorm,20.0,2000.0),mapQ(hpfResNorm));
-        Biquad lp = makeLowPass(mapLog(lpfNorm,1000.0,20000.0),mapQ(lpfResNorm));
+        Biquad hp = makeHighPass(mapLog(p.hpfCutoff,20.0,2000.0),mapQ(p.hpfRes));
+        Biquad lp = makeLowPass(mapLog(p.lpfCutoff,1000.0,20000.0),mapQ(p.lpfRes));
 
-        const double wearCutoff=18000.0-10500.0*wowFlutterNorm;
-        const double wearA=std::exp(-2.0*3.141592653589793*wearCutoff/sampleRate);
-        const double wowInc=2.0*3.141592653589793*0.33/sampleRate;
-        const double flutterInc=2.0*3.141592653589793*5.7/sampleRate;
-        const double flutter2Inc=2.0*3.141592653589793*11.1/sampleRate;
+        const double smoothA=std::exp(-1.0/(0.025*sampleRate));
+        const double optoAttack=std::exp(-1.0/(0.012*sampleRate));
+        const double optoRelease=std::exp(-1.0/(0.090*sampleRate));
+        const double optoMemory=std::exp(-1.0/(1.3*sampleRate));
+        const double hissA=std::exp(-2.0*3.141592653589793*1800.0/sampleRate);
+        const double crackA=std::exp(-1.0/(0.0015*sampleRate));
+        const double dropAttack=std::exp(-1.0/(0.004*sampleRate));
+        const double dropRelease=std::exp(-1.0/(0.030*sampleRate));
 
         const double tubeDrive=std::pow(10.0,(4.0+30.0*preampDriveNorm)/20.0);
         const double transistorDrive=std::pow(10.0,(2.0+34.0*preampDriveNorm)/20.0);
@@ -77,18 +97,45 @@ public:
         const double transistorToneA=std::exp(-2.0*3.141592653589793*4200.0/sampleRate);
 
         for(int i=0;i<n;++i){
-            const double modulation =
-                wowFlutterNorm*(2.8*std::sin(wowPhase)
-                              +0.55*std::sin(flutterPhase)
-                              +0.20*std::sin(flutter2Phase));
-            const double baseDelayMs = wowFlutterNorm>0.0001 ? 4.2 : 0.0;
+            smoothWow=smoothA*smoothWow+(1.0-smoothA)*wowTarget;
+            smoothFlutter=smoothA*smoothFlutter+(1.0-smoothA)*flutterTarget;
+            smoothAge=smoothA*smoothAge+(1.0-smoothA)*ageTarget;
+            smoothOpto=smoothA*smoothOpto+(1.0-smoothA)*optoTarget;
+            smoothMakeup=smoothA*smoothMakeup+(1.0-smoothA)*makeupTarget;
+            smoothOptoMix=smoothA*smoothOptoMix+(1.0-smoothA)*(p.optoBypass>=0.5?0.0:1.0);
+            // Random-duration cubic trajectories: no repeating LFO waveform.
+            const double wow=nextMotion(wowMotion,0.25,1.65);
+            const double flutter=nextMotion(flutterMotion,0.012,0.060);
+            const double movement=std::max(smoothWow,smoothFlutter);
+            const double baseDelayMs=4.0*std::min(1.0,movement*1000.0);
+            const double delaySamples=(baseDelayMs+2.7*smoothWow*wow+0.22*smoothFlutter*flutter)*0.001*sampleRate;
+            const double wearCutoff=18000.0-12500.0*smoothAge;
+            const double wearA=std::exp(-2.0*3.141592653589793*wearCutoff/sampleRate);
+            // Stereo-linked optical cell with a slow memory and a two-stage recovery.
+            double detector=0.0;
+            for(int ch=0;ch<channels;++ch)
+                if(in && in[ch]) detector=std::max(detector,std::abs(static_cast<double>(in[ch][i])));
+            const double optoCoeff=detector>optoFast?optoAttack:optoRelease;
+            optoFast=optoCoeff*optoFast+(1.0-optoCoeff)*detector;
+            optoSlow=optoMemory*optoSlow+(1.0-optoMemory)*optoFast;
+            const double detectorDb=20.0*std::log10(std::max(1e-9,0.72*optoFast+0.28*optoSlow));
+            const double over=detectorDb-(-10.0-20.0*smoothOpto);
+            const double knee=6.0;
+            const double kneeOver=over<=-knee*0.5?0.0:
+                (over>=knee*0.5?over:(over+knee*0.5)*(over+knee*0.5)/(2.0*knee));
+            const double desiredReduction=kneeOver*(2.0/3.0)*std::min(1.0,smoothOpto*20.0);
+            const double recovery=0.10+0.95*std::clamp(optoSlow*3.0,0.0,1.0);
+            const double gainA=std::exp(-1.0/((desiredReduction>optoReduction?0.008:recovery)*sampleRate));
+            optoReduction=gainA*optoReduction+(1.0-gainA)*desiredReduction;
+            const double optoGain=1.0+smoothOptoMix*(std::pow(10.0,-optoReduction/20.0)*smoothMakeup-1.0);
+            reductionPeak=std::max(reductionPeak,std::clamp(optoReduction*smoothOptoMix/24.0,0.0,1.0));
 
             for(int ch=0;ch<channels;++ch){
                 const double x = in && in[ch] ? static_cast<double>(in[ch][i]) : 0.0;
                 inputPeak=std::max(inputPeak,std::abs(x));
 
                 // PREAMP STAGE: OFF / TUBE / TRANSISTOR
-                double pre=x;
+                double pre=x*optoGain;
                 double preSat=0.0;
                 if(preampMode==1){
                     // tube: soft asymmetry, even harmonics, sag and gentle HF rolloff
@@ -136,24 +183,35 @@ public:
                                      *std::min(1.0,0.25+1.15*sat);
                 saturationPeak=std::max(saturationPeak,std::max(preSat,tapeSat));
 
-                wet*=outGain;
                 dc[ch]=dcA*dc[ch]+(1.0-dcA)*wet;
                 wet-=dc[ch];
 
-                // DRY stays true dry, preamp/tape are in wet path
-                double y=wet+x*dryGain;
-
-                if(wowFlutterNorm>0.0001 && !wowBuffer[ch].empty()){
-                    const double stereoSkew=(ch==0?-0.08:0.08)*wowFlutterNorm*std::sin(flutter2Phase);
-                    const double delayMs=std::max(0.6,baseDelayMs+modulation+stereoSkew);
-                    const double delaySamples=delayMs*0.001*sampleRate;
-                    const double delayed=readDelay(ch,y,delaySamples);
-                    const double blend=0.18+0.72*wowFlutterNorm;
-                    y=y*(1.0-blend)+delayed*blend;
-
-                    wearLP[ch]=(1.0-wearA)*y+wearA*wearLP[ch];
-                    y=y*(1.0-0.42*wowFlutterNorm)+wearLP[ch]*(0.42*wowFlutterNorm);
+                // Always write transport history, including at zero modulation.
+                wet=readDelay(ch,wet,std::max(0.0,delaySamples));
+                wearLP[ch]=(1.0-wearA)*wet+wearA*wearLP[ch];
+                wet=wet*(1.0-0.70*smoothAge)+wearLP[ch]*(0.70*smoothAge);
+                if(dropoutLeft[ch]>0){
+                    --dropoutLeft[ch];
+                }else{
+                    dropoutTarget[ch]=0.0;
+                    if(smoothAge>0.0001 && uniform()<smoothAge*smoothAge*0.7/sampleRate){
+                        dropoutTarget[ch]=(0.15+0.75*uniform())*smoothAge;
+                        dropoutLeft[ch]=static_cast<int>((0.012+0.13*uniform())*sampleRate);
+                    }
                 }
+                const double dropA=dropoutTarget[ch]>dropout[ch]?dropAttack:dropRelease;
+                dropout[ch]=dropA*dropout[ch]+(1.0-dropA)*dropoutTarget[ch];
+                wet*=1.0-dropout[ch];
+                const double noise=2.0*uniform()-1.0;
+                hissLP[ch]=hissA*hissLP[ch]+(1.0-hissA)*noise;
+                const double hiss=smoothAge*smoothAge*0.006*(noise-0.65*hissLP[ch]);
+                crackle[ch]*=crackA;
+                if(smoothAge>0.0001 && uniform()<(0.2+4.0*smoothAge)*smoothAge/sampleRate)
+                    crackle[ch]+=(2.0*uniform()-1.0)*0.045*smoothAge;
+                wet+=hiss+crackle[ch]*smoothAge;
+                wet*=outGain;
+                // The existing additive DRY control stays unprocessed.
+                double y=wet+x*dryGain;
 
                 y=runBiquad(y,hp,hp_z1[ch],hp_z2[ch]);
                 y=runBiquad(y,lp,lp_z1[ch],lp_z2[ch]);
@@ -162,18 +220,27 @@ public:
                 if(out && out[ch]) out[ch][i]=static_cast<Sample>(y);
             }
 
-            wowPhase=wrapPhase(wowPhase+wowInc);
-            flutterPhase=wrapPhase(flutterPhase+flutterInc);
-            flutter2Phase=wrapPhase(flutter2Phase+flutter2Inc);
         }
     }
 
 private:
     struct Biquad { double b0{},b1{},b2{},a1{},a2{}; };
 
-    static double wrapPhase(double p){
-        const double twoPi=6.2831853071795864769;
-        return p>=twoPi?p-twoPi:p;
+    struct Motion { double from=0.0,to=0.0; int elapsed=0,length=0; };
+    double uniform(){
+        // Local PRNG: no locks, allocations or global RNG in the audio callback.
+        randomState^=randomState<<13; randomState^=randomState>>17; randomState^=randomState<<5;
+        return static_cast<double>(randomState)/4294967296.0;
+    }
+    double nextMotion(Motion& motion,double minSeconds,double maxSeconds){
+        if(motion.elapsed>=motion.length){
+            motion.from=motion.to;
+            motion.to=2.0*uniform()-1.0;
+            motion.length=std::max(1,static_cast<int>((minSeconds+(maxSeconds-minSeconds)*uniform())*sampleRate));
+            motion.elapsed=0;
+        }
+        const double t=static_cast<double>(motion.elapsed++)/motion.length;
+        return motion.from+(motion.to-motion.from)*t*t*(3.0-2.0*t);
     }
     static double mapLog(double n,double lo,double hi){
         n=std::clamp(n,0.0,1.0);
@@ -239,7 +306,13 @@ private:
     double tubeSag[2]{},tubeTone[2]{},transistorTone[2]{};
     std::vector<double> wowBuffer[2];
     size_t wowWrite[2]{};
-    double wowPhase=0.0,flutterPhase=0.0,flutter2Phase=1.7;
+    uint32_t randomState=0x4a65727au;
+    Motion wowMotion{},flutterMotion{};
+    double smoothWow=0.0,smoothFlutter=0.0,smoothAge=0.0;
+    double smoothOpto=0.0,smoothMakeup=1.0,smoothOptoMix=0.0;
+    double optoFast=0.0,optoSlow=0.0,optoReduction=0.0;
+    double hissLP[2]{},crackle[2]{},dropout[2]{},dropoutTarget[2]{};
+    int dropoutLeft[2]{};
 };
 
 }

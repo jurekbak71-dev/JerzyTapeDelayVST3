@@ -18,11 +18,11 @@ public:
  Steinberg::tresult PLUGIN_API getState(Steinberg::IBStream*) SMTG_OVERRIDE;
 private:
  void readChanges(Steinberg::Vst::IParameterChanges*);
- void sendMeters(Steinberg::Vst::ProcessData&,double,double,double);
+ void sendMeters(Steinberg::Vst::ProcessData&,double,double,double,double);
  TapeDriveParams p{};
  TapeDriveDSP<float> dsp32;
  TapeDriveDSP<double> dsp64;
  double sr=44100.0;
- double inMeter=0.0,satMeter=0.0,outMeter=0.0;
+ double inMeter=0.0,satMeter=0.0,outMeter=0.0,grMeter=0.0;
 };
 }
