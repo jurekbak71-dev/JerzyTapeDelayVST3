@@ -38,6 +38,7 @@ void ToneSnapAudioProcessor::prepareToPlay(double sampleRate, int)
     shiftPhases.fill(0.0f);
     detectorWrite = shiftWrite = samplesSinceAnalysis = 0;
     detectedMidi = -1.0f;
+    targetPitchRatio = 1.0f;
     smoothedRatio = 1.0f;
 }
 
@@ -59,7 +60,7 @@ void ToneSnapAudioProcessor::analysePitch() noexcept
     int bestLag = 0;
     double energy = 0.0;
     for (int i = 0; i < detectorSize; ++i) energy += detector[static_cast<size_t>(i)] * detector[static_cast<size_t>(i)];
-    if (energy / detectorSize < 0.000002) { detectedMidi = -1.0f; return; }
+    if (energy / detectorSize < 0.000002) { detectedMidi = -1.0f; targetPitchRatio = 1.0f; return; }
 
     for (int lag = minLag; lag <= maxLag; ++lag)
     {
@@ -76,9 +77,14 @@ void ToneSnapAudioProcessor::analysePitch() noexcept
         if (score < best) { best = score; bestLag = lag; }
     }
 
-    if (bestLag == 0 || best > 0.32f) { detectedMidi = -1.0f; return; }
+    if (bestLag == 0 || best > 0.32f) { detectedMidi = -1.0f; targetPitchRatio = 1.0f; return; }
     const float hz = static_cast<float>(currentSampleRate) / static_cast<float>(bestLag);
-    detectedMidi = 69.0f + 12.0f * std::log2(hz / 440.0f);
+    const float measuredMidi = 69.0f + 12.0f * std::log2(hz / 440.0f);
+    if (detectedMidi < 0.0f || std::abs(measuredMidi - detectedMidi) > 7.0f)
+        detectedMidi = measuredMidi;
+    else
+        detectedMidi += (measuredMidi - detectedMidi) * 0.35f;
+    targetPitchRatio = tunedRatio();
 }
 
 float ToneSnapAudioProcessor::tunedRatio() const noexcept
@@ -154,9 +160,8 @@ void ToneSnapAudioProcessor::processBlock(juce::AudioBuffer<float>& buffer, juce
         detectorWrite = (detectorWrite + 1) % detectorSize;
         if (++samplesSinceAnalysis >= 512) { analysePitch(); samplesSinceAnalysis = 0; }
 
-        const float targetRatio = tunedRatio();
         const float smoothing = 0.002f + (1.0f - parameters.getRawParameterValue("speed")->load()) * 0.02f;
-        smoothedRatio += (targetRatio - smoothedRatio) * smoothing;
+        smoothedRatio += (targetPitchRatio - smoothedRatio) * smoothing;
         for (int ch = 0; ch < channels; ++ch)
         {
             const float dry = buffer.getSample(ch, i);
