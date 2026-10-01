@@ -65,7 +65,7 @@ void ToneSnapAudioProcessor::analysePitch() noexcept
     // Full one-sample lag scan with sub-sample parabolic refinement.
     // The previous 2-sample grid was too coarse for reliable note decisions.
     constexpr int minLag = 44;
-    constexpr int maxLag = 800;
+    constexpr int maxLag = 850;
     std::array<float, maxLag + 1> scores{};
     scores.fill(1.0f);
     double energy = 0.0;
