@@ -10,6 +10,8 @@
 #include "pluginterfaces/vst/ivstplugview.h"
 #include "../source/tapedrive_params.h"
 #include <windows.h>
+#include <objbase.h>
+#include <utility>
 #include <cmath>
 #include <iostream>
 #include <stdexcept>
