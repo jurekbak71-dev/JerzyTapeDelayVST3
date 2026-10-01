@@ -7,6 +7,7 @@ set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(VST3_SDK_ROOT "" CACHE PATH "Path to a recursively cloned Steinberg vst3sdk")
 
 if(VST3_SDK_ROOT AND EXISTS "${VST3_SDK_ROOT}/CMakeLists.txt")
+    set(JERZY_VST3_SDK_DIR "${VST3_SDK_ROOT}")
     add_subdirectory("${VST3_SDK_ROOT}" "${CMAKE_BINARY_DIR}/vst3sdk")
 else()
     include(FetchContent)
@@ -18,6 +19,7 @@ else()
         GIT_SUBMODULES_RECURSE TRUE
     )
     FetchContent_MakeAvailable(vst3sdk)
+    set(JERZY_VST3_SDK_DIR "${vst3sdk_SOURCE_DIR}")
 endif()
 
 smtg_enable_vst3_sdk()
@@ -86,7 +88,7 @@ endif()
 if(BUILD_TESTING AND WIN32)
     add_executable(TapeDriveGUITests
         tests/tapedrive_gui_test.cpp
-        ${SDK_ROOT}/public.sdk/source/vst/hosting/module_win32.cpp
+        ${JERZY_VST3_SDK_DIR}/public.sdk/source/vst/hosting/module_win32.cpp
     )
     target_compile_definitions(TapeDriveGUITests PRIVATE NOMINMAX WIN32_LEAN_AND_MEAN)
     target_link_libraries(TapeDriveGUITests PRIVATE sdk_hosting user32 ole32 shell32)
