@@ -33,11 +33,11 @@ jobs:
           cmake --build build --config Release --target JerzyTapeDelay --parallel
           cmake --build build --config Release --target JerzyTapeDrive --parallel
 
-      - name: DSP regression tests
+      - name: DSP and native GUI regression tests
         shell: pwsh
         run: |
-          cmake --build build --config Release --target TapeDriveDSPTests TapeDelayDSPTests --parallel
-          ctest --test-dir build -C Release --output-on-failure -R "^Tape(Drive|Delay)DSP$"
+          cmake --build build --config Release --target TapeDriveDSPTests TapeDelayDSPTests TapeDriveGUITests --parallel
+          ctest --test-dir build -C Release --verbose --output-on-failure -R "^(Tape(Drive|Delay)DSP|TapeDriveGUI)$"
 
       - name: Collect VST3 bundles
         shell: pwsh

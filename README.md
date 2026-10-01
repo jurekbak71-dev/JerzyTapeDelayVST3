@@ -25,7 +25,8 @@ przykładowe ustawienia; nie jest zrzutem okna DAW.
   Przełączniki zmieniają stan po kliknięciu; gałki obsługują przeciąganie,
   kółko myszy i reset do wartości domyślnej zgodnie z obsługą VSTGUI/DAW.
 - **UI SIZE**: 75 / 100 / 125 / 150%, z uwzględnieniem skali ekranu.
-  Ręczna zmiana rozmiaru okna zachowuje proporcje panelu i skaluje kontrolki.
+  Ręczna zmiana rozmiaru dopasowuje cały panel i obszary kliknięć do rzeczywistego
+  obszaru GUI w DAW, także gdy host pomija ograniczenia proporcji.
 
 Tor mokry: wejście → kompresor optyczny → przedwzmacniacz → saturacja taśmy →
 transport Wow/Flutter → zużycie taśmy → OUTPUT → filtry wyjściowe.
@@ -46,7 +47,9 @@ Zmieniony model modulacji nie odtwarza starego efektu bit po bicie.
 ## Kompilacja i pobieranie
 
 Workflow **Build Windows VST3** buduje obie wtyczki dla Windows x64,
-uruchamia testy DSP i publikuje osobne artefakty.
+uruchamia testy DSP i natywny test otwartego GUI w oknie Windows, a następnie
+publikuje osobne artefakty. Test GUI sprawdza przyciski powiększenia, zmianę DPI,
+wyszukiwanie parametrów pod kursorem oraz rzeczywiste kliknięcia po resize.
 W zakładce **Actions**, w zakończonym przebiegu, wybierz
 **JerzyTapeDrive-Windows-x64** i rozpakuj `JerzyTapeDrive.vst3` do
 `C:\Program Files\Common Files\VST3`. Następnie przeskanuj wtyczki w DAW.

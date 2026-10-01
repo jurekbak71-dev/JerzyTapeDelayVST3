@@ -9,12 +9,18 @@ public:
     void valueChanged(VSTGUI::CControl* control) override;
 
 protected:
+    bool PLUGIN_API open(void* parent,const VSTGUI::PlatformType& type) override;
+#ifdef VST3_CONTENT_SCALE_SUPPORT
+    Steinberg::tresult PLUGIN_API setContentScaleFactor(ScaleFactor factor) override;
+#endif
     Steinberg::tresult PLUGIN_API checkSizeConstraint(Steinberg::ViewRect* rect) override;
     Steinberg::tresult PLUGIN_API onSize(Steinberg::ViewRect* rect) override;
     bool beforeSizeChange(const VSTGUI::CRect& newSize,const VSTGUI::CRect& oldSize) override;
 
 private:
-    bool hostResizing=false;
+    bool applyingSize=false;
+    double userZoom=1.0;
+    void fitHostSize(const Steinberg::ViewRect& size);
     void applyZoom(double factor);
 };
 

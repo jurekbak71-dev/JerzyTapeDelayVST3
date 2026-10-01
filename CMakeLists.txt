@@ -82,3 +82,15 @@ if(BUILD_TESTING)
     add_test(NAME TapeDriveDSP COMMAND TapeDriveDSPTests)
     add_test(NAME TapeDelayDSP COMMAND TapeDelayDSPTests)
 endif()
+
+if(BUILD_TESTING AND WIN32)
+    add_executable(TapeDriveGUITests
+        tests/tapedrive_gui_test.cpp
+        ${SDK_ROOT}/public.sdk/source/vst/hosting/module_win32.cpp
+    )
+    target_compile_definitions(TapeDriveGUITests PRIVATE NOMINMAX WIN32_LEAN_AND_MEAN)
+    target_link_libraries(TapeDriveGUITests PRIVATE sdk_hosting user32 ole32 shell32)
+    add_dependencies(TapeDriveGUITests JerzyTapeDrive)
+    add_test(NAME TapeDriveGUI COMMAND TapeDriveGUITests $<TARGET_FILE:JerzyTapeDrive>)
+    set_tests_properties(TapeDriveGUI PROPERTIES TIMEOUT 90)
+endif()
