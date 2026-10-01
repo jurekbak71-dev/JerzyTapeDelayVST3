@@ -1,5 +1,5 @@
 cmake_minimum_required(VERSION 3.24)
-project(ToneSnap VERSION 0.1.0)
+project(JerzyAutoTune VERSION 0.2.0)
 
 include(FetchContent)
 FetchContent_Declare(JUCE
@@ -13,26 +13,26 @@ FetchContent_Declare(signalsmith-stretch
     GIT_TAG a670068d9aeb64913331d5cc29337b19a457a7df)
 FetchContent_MakeAvailable(signalsmith-stretch)
 
-juce_add_plugin(ToneSnap
+juce_add_plugin(JerzyAutoTune
     COMPANY_NAME "Jerzy Audio"
-    BUNDLE_ID "audio.jerzy.tonesnap"
+    BUNDLE_ID "audio.jerzy.autotune"
     PLUGIN_MANUFACTURER_CODE JzAu
-    PLUGIN_CODE TnSp
+    PLUGIN_CODE JrAT
     FORMATS VST3
-    PRODUCT_NAME "ToneSnap")
+    PRODUCT_NAME "JERZY AUTO TUNE")
 
-juce_generate_juce_header(ToneSnap)
-target_sources(ToneSnap PRIVATE
+juce_generate_juce_header(JerzyAutoTune)
+target_sources(JerzyAutoTune PRIVATE
     Source/PluginEditor.cpp
     Source/PluginEditor.h
     Source/PluginProcessor.cpp
     Source/PluginProcessor.h)
-target_compile_features(ToneSnap PRIVATE cxx_std_17)
-target_compile_options(ToneSnap PRIVATE $<$<CXX_COMPILER_ID:MSVC>:/bigobj>)
-target_compile_definitions(ToneSnap PUBLIC
+target_compile_features(JerzyAutoTune PRIVATE cxx_std_17)
+target_compile_options(JerzyAutoTune PRIVATE $<$<CXX_COMPILER_ID:MSVC>:/bigobj>)
+target_compile_definitions(JerzyAutoTune PUBLIC
     JUCE_WEB_BROWSER=0 JUCE_USE_CURL=0
     JUCE_VST3_CAN_REPLACE_VST2=0)
-target_link_libraries(ToneSnap PRIVATE
+target_link_libraries(JerzyAutoTune PRIVATE
     juce::juce_audio_utils juce::juce_dsp
     signalsmith-stretch
     PUBLIC juce::juce_recommended_config_flags

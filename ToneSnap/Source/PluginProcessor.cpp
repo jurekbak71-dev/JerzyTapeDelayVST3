@@ -33,6 +33,7 @@ void ToneSnapAudioProcessor::prepareToPlay(double sampleRate, int maximumExpecte
     detectedMidi = -1.0f;
     targetPitchRatio = 1.0f;
     smoothedRatio = 1.0f;
+    smoothedMix = parameters.getRawParameterValue("mix")->load();
     maximumBlockSize = juce::jmax(1, maximumExpectedSamplesPerBlock);
     const int channels = juce::jlimit(1, 2, getTotalNumOutputChannels());
     stretchedBuffer.setSize(channels, maximumBlockSize, false, true, true);
@@ -61,18 +62,17 @@ bool ToneSnapAudioProcessor::isBusesLayoutSupported(const BusesLayout& layouts) 
 
 void ToneSnapAudioProcessor::analysePitch() noexcept
 {
-    // YIN-style normalized difference, deliberately limited to monophonic vocal range.
-    constexpr int minLag = 50;
-    constexpr int maxLag = 600;
-    float best = 1.0f;
-    int bestLag = 0;
+    // Full one-sample lag scan with sub-sample parabolic refinement.
+    // The previous 2-sample grid was too coarse for reliable note decisions.
+    constexpr int minLag = 44;
+    constexpr int maxLag = 800;
+    std::array<float, maxLag + 1> scores{};
+    scores.fill(1.0f);
     double energy = 0.0;
     for (int i = 0; i < detectorSize; ++i) energy += detector[static_cast<size_t>(i)] * detector[static_cast<size_t>(i)];
     if (energy / detectorSize < 0.000002) { detectedMidi = -1.0f; targetPitchRatio = 1.0f; return; }
 
-    float previousScore = 1.0f;
-    bool foundVoicedMinimum = false;
-    for (int lag = minLag; lag <= maxLag; lag += 2)
+    for (int lag = minLag; lag <= maxLag; ++lag)
     {
         double difference = 0.0, normA = 0.0, normB = 0.0;
         for (int i = 0; i < detectorSize - maxLag; i += 4)
@@ -83,21 +83,33 @@ void ToneSnapAudioProcessor::analysePitch() noexcept
             normA += a * a;
             normB += b * b;
         }
-        const float score = static_cast<float>(difference / (normA + normB + 1.0e-12));
-        if (score < best) { best = score; bestLag = lag; }
-        if (score > previousScore && previousScore < 0.20f)
-        {
-            best = previousScore;
-            bestLag = lag - 2;
-            foundVoicedMinimum = true;
-            break;
-        }
-        previousScore = score;
+        scores[static_cast<size_t>(lag)] = static_cast<float>(difference / (normA + normB + 1.0e-12));
     }
 
-    if (bestLag == 0 || best > 0.32f || (best > 0.24f && !foundVoicedMinimum))
+    int bestLag = 0;
+    float bestScore = 1.0f;
+    for (int lag = minLag + 1; lag < maxLag; ++lag)
+    {
+        const float score = scores[static_cast<size_t>(lag)];
+        if (score <= scores[static_cast<size_t>(lag - 1)] && score < scores[static_cast<size_t>(lag + 1)] && score < 0.24f)
+        {
+            bestLag = lag;
+            bestScore = score;
+            break; // First confident YIN minimum favours the fundamental over its harmonics.
+        }
+        if (score < bestScore) { bestScore = score; bestLag = lag; }
+    }
+    if (bestLag == 0 || bestScore > 0.32f)
     { detectedMidi = -1.0f; targetPitchRatio = 1.0f; return; }
-    const float hz = static_cast<float>(currentSampleRate) / static_cast<float>(bestLag);
+
+    const float left = scores[static_cast<size_t>(bestLag - 1)];
+    const float centre = scores[static_cast<size_t>(bestLag)];
+    const float right = scores[static_cast<size_t>(bestLag + 1)];
+    const float curvature = left - 2.0f * centre + right;
+    const float fractionalOffset = std::abs(curvature) > 1.0e-9f
+        ? juce::jlimit(-0.5f, 0.5f, 0.5f * (left - right) / curvature) : 0.0f;
+    const float period = static_cast<float>(bestLag) + fractionalOffset;
+    const float hz = static_cast<float>(currentSampleRate) / period;
     const float measuredMidi = 69.0f + 12.0f * std::log2(hz / 440.0f);
     if (detectedMidi < 0.0f || std::abs(measuredMidi - detectedMidi) > 7.0f)
         detectedMidi = measuredMidi;
@@ -112,7 +124,6 @@ float ToneSnapAudioProcessor::tunedRatio() const noexcept
     const int key = static_cast<int>(parameters.getRawParameterValue("key")->load());
     const int scale = static_cast<int>(parameters.getRawParameterValue("scale")->load());
     const float amount = parameters.getRawParameterValue("amount")->load();
-    const float speed = parameters.getRawParameterValue("speed")->load();
     static constexpr std::array<int, 12> major { 0, 2, 4, 5, 7, 9, 11, -1, -1, -1, -1, -1 };
     static constexpr std::array<int, 12> minor { 0, 2, 3, 5, 7, 8, 10, -1, -1, -1, -1, -1 };
     const int nearestMidi = static_cast<int>(std::lround(detectedMidi));
@@ -133,8 +144,7 @@ float ToneSnapAudioProcessor::tunedRatio() const noexcept
     }
     const float correctedMidi = detectedMidi + (bestMidi - detectedMidi) * amount;
     const float correction = std::pow(2.0f, (correctedMidi - detectedMidi) / 12.0f);
-    const float retuneBlend = 0.08f + speed * 0.72f;
-    return 1.0f + (correction - 1.0f) * retuneBlend;
+    return correction;
 }
 
 void ToneSnapAudioProcessor::processBlock(juce::AudioBuffer<float>& buffer, juce::MidiBuffer&)
@@ -143,6 +153,7 @@ void ToneSnapAudioProcessor::processBlock(juce::AudioBuffer<float>& buffer, juce
     const int channels = juce::jmin(buffer.getNumChannels(), stretchedBuffer.getNumChannels());
     const int samples = buffer.getNumSamples();
     const float mix = parameters.getRawParameterValue("mix")->load();
+    const float mixSmoothing = 1.0f - std::exp(-1.0f / (0.005f * static_cast<float>(currentSampleRate)));
     for (int i = 0; i < samples; ++i)
     {
         float detectorSample = 0.0f;
@@ -168,8 +179,9 @@ void ToneSnapAudioProcessor::processBlock(juce::AudioBuffer<float>& buffer, juce
                 {
                     const float input = buffer.getSample(ch, offset + i);
                     dryDelayBuffer.setSample(ch, dryDelayWrite, input);
-                    buffer.setSample(ch, offset + i, dryDelayBuffer.getSample(ch, dryRead) * (1.0f - mix));
+                    buffer.setSample(ch, offset + i, dryDelayBuffer.getSample(ch, dryRead) * (1.0f - smoothedMix));
                 }
+                smoothedMix += (mix - smoothedMix) * mixSmoothing;
                 dryDelayWrite = (dryDelayWrite + 1) % dryDelayLength;
             }
             startupInputCount += count;
@@ -189,7 +201,7 @@ void ToneSnapAudioProcessor::processBlock(juce::AudioBuffer<float>& buffer, juce
 
         const int count = juce::jmin(maximumBlockSize, juce::jmin(64, samples - offset));
         const float speed = parameters.getRawParameterValue("speed")->load();
-        const float timeConstant = 0.060f + (1.0f - speed) * 0.140f;
+        const float timeConstant = 0.008f + (1.0f - speed) * 0.180f;
         const float smoothing = 1.0f - std::exp(-static_cast<float>(count) /
                                                  (timeConstant * static_cast<float>(currentSampleRate)));
         smoothedRatio += (targetPitchRatio - smoothedRatio) * smoothing;
@@ -212,8 +224,9 @@ void ToneSnapAudioProcessor::processBlock(juce::AudioBuffer<float>& buffer, juce
                 dryDelayBuffer.setSample(ch, dryDelayWrite, input);
                 const float delayedDry = dryDelayBuffer.getSample(ch, dryRead);
                 const float wet = stretchedBuffer.getSample(ch, i);
-                buffer.setSample(ch, offset + i, delayedDry + (wet - delayedDry) * mix);
+                buffer.setSample(ch, offset + i, delayedDry + (wet - delayedDry) * smoothedMix);
             }
+            smoothedMix += (mix - smoothedMix) * mixSmoothing;
             dryDelayWrite = (dryDelayWrite + 1) % dryDelayLength;
         }
         offset += count;

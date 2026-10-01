@@ -92,7 +92,7 @@ void ToneSnapAudioProcessorEditor::paint(juce::Graphics& g)
     g.fillRoundedRectangle(25.0f, 26.0f, 4.0f, 35.0f, 2.0f);
     g.setColour(textMain);
     g.setFont(juce::Font(25.0f, juce::Font::bold));
-    g.drawText("TONESNAP", 42, 20, 250, 31, juce::Justification::centredLeft);
+    g.drawText("JERZY AUTO TUNE", 42, 20, 330, 31, juce::Justification::centredLeft);
     g.setColour(textMuted);
     g.setFont(juce::Font(10.5f, juce::Font::bold));
     g.drawText("REAL-TIME VOCAL TUNING", 43, 49, 260, 18, juce::Justification::centredLeft);

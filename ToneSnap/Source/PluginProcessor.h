@@ -18,7 +18,7 @@ public:
     void processBlock(juce::AudioBuffer<float>&, juce::MidiBuffer&) override;
     juce::AudioProcessorEditor* createEditor() override;
     bool hasEditor() const override { return true; }
-    const juce::String getName() const override { return "ToneSnap"; }
+    const juce::String getName() const override { return "JERZY AUTO TUNE"; }
     bool acceptsMidi() const override { return false; }
     bool producesMidi() const override { return false; }
     bool isMidiEffect() const override { return false; }
@@ -40,13 +40,14 @@ private:
     void analysePitch() noexcept;
     float tunedRatio() const noexcept;
 
-    static constexpr int detectorSize = 2048;
+    static constexpr int detectorSize = 4096;
     std::array<float, detectorSize> detector{};
     int detectorWrite = 0;
     int samplesSinceAnalysis = 0;
     float detectedMidi = -1.0f;
     float targetPitchRatio = 1.0f;
     float smoothedRatio = 1.0f;
+    float smoothedMix = 1.0f;
     double currentSampleRate = 44100.0;
     int maximumBlockSize = 512;
     int dryDelayLength = 1;
