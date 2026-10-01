@@ -63,9 +63,11 @@ ToneSnapAudioProcessorEditor::ToneSnapAudioProcessorEditor(ToneSnapAudioProcesso
     setCaption(retuneLabel, "RETUNE");
     setCaption(amountLabel, "AMOUNT");
     setCaption(mixLabel, "MIX");
-    for (auto* component : { static_cast<juce::Component*>(&keyLabel), &scaleLabel,
-                             &retuneLabel, &amountLabel, &mixLabel, &keyBox, &scaleBox,
-                             &retuneSlider, &amountSlider, &mixSlider })
+    const std::array<juce::Component*, 10> controls {
+        &keyLabel, &scaleLabel, &retuneLabel, &amountLabel, &mixLabel,
+        &keyBox, &scaleBox, &retuneSlider, &amountSlider, &mixSlider
+    };
+    for (auto* component : controls)
         addAndMakeVisible(component);
 
     styleSlider(retuneSlider);
