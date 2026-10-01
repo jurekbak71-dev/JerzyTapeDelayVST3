@@ -37,6 +37,11 @@ void ToneSnapAudioProcessor::prepareToPlay(double sampleRate, int maximumExpecte
     const int channels = juce::jlimit(1, 2, getTotalNumOutputChannels());
     stretchedBuffer.setSize(channels, maximumBlockSize, false, true, true);
     stretcher.presetDefault(channels, static_cast<float>(sampleRate), true);
+    seekInputLength = stretcher.outputSeekLength(1.0f);
+    startupBuffer.setSize(channels, seekInputLength, false, true, true);
+    startupBuffer.clear();
+    startupInputCount = 0;
+    stretcherReady = false;
     const int latency = stretcher.inputLatency() + stretcher.outputLatency();
     setLatencySamples(latency);
     dryDelayLength = latency + maximumBlockSize + 1;
@@ -148,17 +153,45 @@ void ToneSnapAudioProcessor::processBlock(juce::AudioBuffer<float>& buffer, juce
         if (++samplesSinceAnalysis >= 512) { analysePitch(); samplesSinceAnalysis = 0; }
     }
 
-    const float speed = parameters.getRawParameterValue("speed")->load();
-    const float timeConstant = 0.003f + (1.0f - speed) * 0.050f;
-    const float smoothing = 1.0f - std::exp(-static_cast<float>(samples) /
-                                             (timeConstant * static_cast<float>(currentSampleRate)));
-    smoothedRatio += (targetPitchRatio - smoothedRatio) * smoothing;
-    stretcher.setTransposeFactor(smoothedRatio);
-
     int offset = 0;
     while (offset < samples)
     {
-        const int count = juce::jmin(maximumBlockSize, samples - offset);
+        if (!stretcherReady)
+        {
+            const int count = juce::jmin(samples - offset, seekInputLength - startupInputCount);
+            for (int ch = 0; ch < channels; ++ch)
+                startupBuffer.copyFrom(ch, startupInputCount, buffer, ch, offset, count);
+            for (int i = 0; i < count; ++i)
+            {
+                const int dryRead = (dryDelayWrite - getLatencySamples() + dryDelayLength) % dryDelayLength;
+                for (int ch = 0; ch < channels; ++ch)
+                {
+                    const float input = buffer.getSample(ch, offset + i);
+                    dryDelayBuffer.setSample(ch, dryDelayWrite, input);
+                    buffer.setSample(ch, offset + i, dryDelayBuffer.getSample(ch, dryRead) * (1.0f - mix));
+                }
+                dryDelayWrite = (dryDelayWrite + 1) % dryDelayLength;
+            }
+            startupInputCount += count;
+            offset += count;
+            if (startupInputCount == seekInputLength)
+            {
+                std::array<const float*, 2> startPointers{};
+                for (int ch = 0; ch < channels; ++ch)
+                    startPointers[static_cast<size_t>(ch)] = startupBuffer.getReadPointer(ch);
+                stretcher.outputSeek(startPointers.data(), seekInputLength);
+                stretcherReady = true;
+            }
+            continue;
+        }
+
+        const int count = juce::jmin({ maximumBlockSize, 64, samples - offset });
+        const float speed = parameters.getRawParameterValue("speed")->load();
+        const float timeConstant = 0.060f + (1.0f - speed) * 0.140f;
+        const float smoothing = 1.0f - std::exp(-static_cast<float>(count) /
+                                                 (timeConstant * static_cast<float>(currentSampleRate)));
+        smoothedRatio += (targetPitchRatio - smoothedRatio) * smoothing;
+        stretcher.setTransposeFactor(smoothedRatio);
         std::array<const float*, 2> inputPointers{};
         std::array<float*, 2> outputPointers{};
         for (int ch = 0; ch < channels; ++ch)

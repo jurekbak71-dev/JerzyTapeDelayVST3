@@ -51,8 +51,12 @@ private:
     int maximumBlockSize = 512;
     int dryDelayLength = 1;
     int dryDelayWrite = 0;
+    int seekInputLength = 0;
+    int startupInputCount = 0;
+    bool stretcherReady = false;
     juce::AudioBuffer<float> stretchedBuffer;
     juce::AudioBuffer<float> dryDelayBuffer;
+    juce::AudioBuffer<float> startupBuffer;
     signalsmith::stretch::SignalsmithStretch<float> stretcher;
 
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR(ToneSnapAudioProcessor)
