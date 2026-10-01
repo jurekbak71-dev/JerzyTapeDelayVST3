@@ -75,7 +75,7 @@ void ToneSnapAudioProcessor::analysePitch() noexcept
     for (int lag = minLag; lag <= maxLag; ++lag)
     {
         double difference = 0.0, normA = 0.0, normB = 0.0;
-        for (int i = 0; i < detectorSize - maxLag; i += 4)
+        for (int i = 0; i < detectorSize - maxLag; i += 8)
         {
             const float a = detector[static_cast<size_t>((detectorWrite + i) % detectorSize)];
             const float b = detector[static_cast<size_t>((detectorWrite + i + lag) % detectorSize)];
