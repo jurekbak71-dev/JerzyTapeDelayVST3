@@ -70,8 +70,8 @@ void JerzyLookAndFeel::drawRotarySlider(juce::Graphics& g, int x, int y, int w, 
 }
 
 void JerzyLookAndFeel::drawLinearSlider(juce::Graphics& g, int x, int y, int w, int h,
-                                           float sliderPos, float, float,
-                                           juce::Slider::SliderStyle style, juce::Slider&)
+                                           float sliderPos, float minSliderPos, float maxSliderPos,
+                                           juce::Slider::SliderStyle style, juce::Slider& slider)
 {
     auto r = juce::Rectangle<float>((float)x,(float)y,(float)w,(float)h);
     if (style == juce::Slider::LinearVertical)
@@ -90,7 +90,7 @@ void JerzyLookAndFeel::drawLinearSlider(juce::Graphics& g, int x, int y, int w, 
         g.setColour(C(red)); g.fillRect(knob.reduced(3.0f).withHeight(2.0f).withCentre(knob.getCentre()));
         return;
     }
-    juce::LookAndFeel_V4::drawLinearSlider(g,x,y,w,h,sliderPos,0.0f,0.0f,style,*static_cast<juce::Slider*>(nullptr));
+    juce::LookAndFeel_V4::drawLinearSlider(g,x,y,w,h,sliderPos,minSliderPos,maxSliderPos,style,slider);
 }
 
 void JerzyLookAndFeel::drawToggleButton(juce::Graphics& g, juce::ToggleButton& b, bool over, bool down)
