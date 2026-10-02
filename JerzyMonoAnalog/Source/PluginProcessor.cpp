@@ -55,6 +55,25 @@ void JerzyMonoAnalogAudioProcessor::processBlock(juce::AudioBuffer<float>& b, ju
     p.glideSeconds = apvts.getRawParameterValue("glide")->load();
     p.lfoWave = lfoWaveFrom(apvts.getRawParameterValue("lfoWave")->load());
     p.lfoRate = apvts.getRawParameterValue("lfoRate")->load();
+    const bool lfoSync = apvts.getRawParameterValue("lfoSync")->load() > 0.5f;
+    if (lfoSync)
+    {
+        double bpm = 120.0;
+        if (auto* ph = getPlayHead())
+            if (auto pos = ph->getPosition())
+                if (auto hostBpm = pos->getBpm())
+                    bpm = *hostBpm;
+
+        const int div = (int) apvts.getRawParameterValue("lfoDivision")->load();
+        static constexpr double cyclesPerQuarter[] =
+        {
+            0.25, 0.5, 1.0, 2.0, 4.0, 8.0,
+            1.5, 3.0, 6.0,
+            2.0/3.0, 4.0/3.0, 8.0/3.0
+        };
+        const int idx = juce::jlimit(0, 11, div);
+        p.lfoRate = (bpm / 60.0) * cyclesPerQuarter[idx];
+    }
     p.lfoPitchCents = apvts.getRawParameterValue("lfoPitch")->load();
     p.lfoFilterOct = apvts.getRawParameterValue("lfoFilter")->load();
     p.lfoPWM = apvts.getRawParameterValue("lfoPWM")->load();
@@ -132,6 +151,9 @@ juce::AudioProcessorValueTreeState::ParameterLayout JerzyMonoAnalogAudioProcesso
     l.add(std::make_unique<C>("glideMode","Glide Mode",juce::StringArray{"Always","Legato"},1));
     l.add(std::make_unique<C>("priority","Note Priority",juce::StringArray{"Last","Low","High"},0));
     l.add(std::make_unique<C>("lfoWave","LFO Wave",juce::StringArray{"Sine","Triangle","Saw","Square","S&H"},0));
+    l.add(std::make_unique<B>("lfoSync","LFO Tempo Sync",false));
+    l.add(std::make_unique<C>("lfoDivision","LFO Division",
+        juce::StringArray{"1/1","1/2","1/4","1/8","1/16","1/32","1/4T","1/8T","1/16T","1/4D","1/8D","1/16D"},3));
     l.add(std::make_unique<P>("lfoRate","LFO Rate",juce::NormalisableRange<float>(0.03f,30.0f,0.0f,0.25f),2.0f));
     l.add(std::make_unique<P>("lfoPitch","LFO Pitch",0.0f,100.0f,0.0f));
     l.add(std::make_unique<P>("lfoFilter","LFO Filter",0.0f,4.0f,0.0f));
