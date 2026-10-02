@@ -61,7 +61,12 @@ void JerzyLookAndFeel::drawRotarySlider(juce::Graphics& g, int x, int y, int w, 
     g.strokePath(p, juce::PathStrokeType(juce::jmax(2.0f,d*0.035f), juce::PathStrokeType::curved, juce::PathStrokeType::rounded));
 
     g.setColour(juce::Colours::white.withAlpha(0.16f));
-    g.drawArc(r.reduced(d*0.09f), startAngle, endAngle, true, juce::jmax(1.0f,d*0.012f));
+    auto arcR = r.reduced(d*0.09f);
+    juce::Path arc;
+    arc.addCentredArc(arcR.getCentreX(), arcR.getCentreY(),
+                      arcR.getWidth()*0.5f, arcR.getHeight()*0.5f,
+                      0.0f, startAngle, endAngle, true);
+    g.strokePath(arc, juce::PathStrokeType(juce::jmax(1.0f,d*0.012f)));
 }
 
 void JerzyLookAndFeel::drawToggleButton(juce::Graphics& g, juce::ToggleButton& b, bool over, bool down)
