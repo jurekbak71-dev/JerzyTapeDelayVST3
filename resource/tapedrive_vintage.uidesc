@@ -15,6 +15,7 @@
     <bitmap name="VintagePanel" path="tapedrive_vintage_background.jpg" />
   </bitmaps>
   <template name="view" class="CViewContainer" origin="0, 0" size="1200, 672" minSize="900, 504" maxSize="1800, 1008" bitmap="VintagePanel" transparent="false" tooltip="Jerzy Tape Drive">
+    <view class="CTextLabel" origin="785, 211" size="350, 20" title="v0.3.1 — WINDOW SCALE" font="Small" font-color="Amber" transparent="true" text-alignment="right" mouse-enabled="false" />
     <view class="HardwarePanel" origin="0, 0" size="1200, 672" mouse-enabled="false" />
     <view class="CTextLabel" origin="70, 239" size="142, 23" title="DRIVE" font="Label" font-color="Amber" transparent="true" text-alignment="center" mouse-enabled="false" />
     <view class="ChickenKnob" origin="88, 266" size="106, 106" control-tag="Sat" wheel-inc-value="0.01" tooltip="Tape saturation" />

@@ -20,6 +20,9 @@ using namespace Steinberg::Vst;
 using namespace JerzyAudio;
 using RenderProbe=int(__cdecl*)(IPlugView*,const char*);
 RenderProbe renderProbe=nullptr;
+RenderProbe visibleProbe=nullptr;
+using ResetProbe=int(__cdecl*)(IPlugView*);
+ResetProbe resetProbe=nullptr;
 void require(bool value,const char* message){if(!value)throw std::runtime_error(message);}
 class HostFrame final : public U::Implements<U::Directly<IPlugFrame>> {
 public:
@@ -32,6 +35,7 @@ public:
     }
 };
 void pump(){MSG msg;while(PeekMessageW(&msg,nullptr,0,0,PM_REMOVE)){TranslateMessage(&msg);DispatchMessageW(&msg);}}
+void settle(){const auto end=GetTickCount64()+400;do{pump();MsgWaitForMultipleObjects(0,nullptr,FALSE,10,QS_ALLINPUT);}while(GetTickCount64()<end);}
 HWND editorWindow(HWND parent){
     HWND largest=nullptr;long area=0;
     for(HWND child=GetWindow(parent,GW_CHILD);child;child=GetWindow(child,GW_HWNDNEXT)){
@@ -79,6 +83,9 @@ int main(int argc,char** argv){try{
     const auto nativeModule=GetModuleHandleA(argv[1]);
     renderProbe=reinterpret_cast<RenderProbe>(GetProcAddress(nativeModule,"JerzyRenderEditorForTest"));
     require(renderProbe!=nullptr,"Render probe missing from test build");
+    visibleProbe=reinterpret_cast<RenderProbe>(GetProcAddress(nativeModule,"JerzyCaptureVisibleEditorForTest"));
+    resetProbe=reinterpret_cast<ResetProbe>(GetProcAddress(nativeModule,"JerzyResetTransformForTest"));
+    require(visibleProbe && resetProbe,"Visible window probes missing");
     HostApplication host;module->getFactory().setHostContext(&host);
     IPtr<IEditController> controller;
     for(const auto& info:module->getFactory().classInfos())
@@ -128,6 +135,19 @@ int main(int argc,char** argv){try{
         auto unchanged=sizeOf(view);require(old.getWidth()==unchanged.getWidth()&&old.getHeight()==unchanged.getHeight(),"Rejected resize changed the accepted viewport");
         checkPanel(view,controller,frame.window);frame.reject=false;
         std::cout<<"Real HWND GUI: DPI "<<dpi<<", all zoom buttons, parameter hit areas, bypass mouse clicks, VST3 and native HWND resize, and rejection OK\n";
+    }
+    // Actual WM_PAINT and desktop pixels, with the whole client area visible.
+    for(const auto dimensions:{std::pair<int,int>{900,504},{1000,560}}){
+        ViewRect visible(0,0,dimensions.first,dimensions.second);
+        frame.resizeView(view,&visible);
+        SetWindowPos(frame.window,HWND_TOPMOST,0,0,dimensions.first,dimensions.second,SWP_SHOWWINDOW);
+        ShowWindow(frame.window,SW_SHOW);settle();
+        const std::string path="tapedrive-window-"+std::to_string(dimensions.first)+".bmp";
+        require(visibleProbe(view,path.c_str())==1,"Visible HWND pixels differ from the scaled panel");
+        // Size alone is insufficient: simulate a late VSTGUI transform reset.
+        require(resetProbe(view)==1,"Cannot simulate a stale transform");settle();
+        checkPanel(view,controller,frame.window);
+        require(visibleProbe(view,path.c_str())==1,"Late transform reset left the visible panel unscaled");
     }
     view->removed();view->setFrame(nullptr);scale=nullptr;view=nullptr;
     DestroyWindow(frame.window);controller->terminate();controller=nullptr;module.reset();CoUninitialize();

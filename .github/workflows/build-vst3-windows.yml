@@ -44,7 +44,9 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: TapeDrive-GUI-render
-          path: build/tapedrive-render-*.png
+          path: |
+            build/tapedrive-render-*.png
+            build/tapedrive-window-*.bmp
           if-no-files-found: ignore
 
       - name: Collect VST3 bundles
