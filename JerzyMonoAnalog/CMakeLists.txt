@@ -29,6 +29,8 @@ juce_add_plugin(JerzyMonoAnalog
     COPY_PLUGIN_AFTER_BUILD FALSE
 )
 
+juce_generate_juce_header(JerzyMonoAnalog)
+
 target_sources(JerzyMonoAnalog PRIVATE
     Source/PluginProcessor.cpp
     Source/PluginProcessor.h
