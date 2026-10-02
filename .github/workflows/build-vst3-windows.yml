@@ -30,15 +30,14 @@ jobs:
       - name: Build Release
         shell: pwsh
         run: |
-          cmake --build build --config Release --target JerzyTapeDelay --parallel
           cmake --build build --config Release --target JerzyTapeDrive --parallel
 
       - name: DSP and native GUI regression tests
         shell: pwsh
         run: |
-          cmake --build build --config Release --target TapeDriveDSPTests TapeDelayDSPTests TapeDriveGUITests --parallel
+          cmake --build build --config Release --target TapeDriveDSPTests TapeDriveGUITests --parallel
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
-          ctest --test-dir build -C Release --verbose --output-on-failure -R "^(Tape(Drive|Delay)DSP|TapeDriveGUI)$"
+          ctest --test-dir build -C Release --verbose --output-on-failure -R "^(TapeDriveDSP|TapeDriveGUI)$"
 
       - name: Upload GUI render evidence
         if: always()
@@ -53,24 +52,10 @@ jobs:
         run: |
           New-Item -ItemType Directory -Force -Path artifact | Out-Null
 
-          $delay = Get-ChildItem -Path build -Recurse -Directory -Filter "JerzyTapeDelay.vst3" | Select-Object -First 1
-          if (-not $delay) { throw "JerzyTapeDelay.vst3 was not produced" }
-          Copy-Item -Recurse -Force $delay.FullName artifact/JerzyTapeDelay.vst3
-          Compress-Archive -Path artifact/JerzyTapeDelay.vst3 -DestinationPath JerzyTapeDelay_Windows_x64.zip -Force
-
           $drive = Get-ChildItem -Path build -Recurse -Directory -Filter "JerzyTapeDrive.vst3" | Select-Object -First 1
           if (-not $drive) { throw "JerzyTapeDrive.vst3 was not produced" }
           Copy-Item -Recurse -Force $drive.FullName artifact/JerzyTapeDrive.vst3
           Compress-Archive -Path artifact/JerzyTapeDrive.vst3 -DestinationPath JerzyTapeDrive_Windows_x64.zip -Force
-
-      - name: Upload Tape Delay
-        uses: actions/upload-artifact@v4
-        with:
-          name: JerzyTapeDelay-Windows-x64
-          path: |
-            artifact/JerzyTapeDelay.vst3
-            JerzyTapeDelay_Windows_x64.zip
-          if-no-files-found: error
 
       - name: Upload Tape Drive
         uses: actions/upload-artifact@v4

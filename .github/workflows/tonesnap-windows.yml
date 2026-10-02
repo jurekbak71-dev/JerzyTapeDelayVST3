@@ -1,0 +1,38 @@
+name: Build JERZY AUTO TUNE VST3 (Windows)
+
+on:
+  push:
+    branches:
+      - tonesnap-windows-20261001
+    paths:
+      - 'ToneSnap/**'
+      - '.github/workflows/tonesnap-windows.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    runs-on: windows-2022
+    steps:
+      - name: Check out source
+        uses: actions/checkout@v4
+
+      - name: Configure x64 Release
+        run: cmake -S ToneSnap -B build/JerzyAutoTune -A x64
+
+      - name: Build VST3
+        run: cmake --build build/JerzyAutoTune --config Release --target JerzyAutoTune_VST3
+
+      - name: Package plugin
+        shell: pwsh
+        run: Compress-Archive -Path 'build/JerzyAutoTune/JerzyAutoTune_artefacts/Release/VST3/JERZY AUTO TUNE.vst3' -DestinationPath 'JERZY-AUTO-TUNE-Windows-x64-VST3.zip' -Force
+
+      - name: Upload VST3 artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: JERZY-AUTO-TUNE-Windows-x64-VST3
+          path: JERZY-AUTO-TUNE-Windows-x64-VST3.zip
+          if-no-files-found: error
+          retention-days: 14

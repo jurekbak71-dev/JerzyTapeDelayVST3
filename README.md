@@ -1,6 +1,6 @@
-# Jerzy Audio VST3
+# Jerzy Tape Drive VST3
 
-Repozytorium zawiera dwie osobne wtyczki: **Jerzy Tape Delay** i **Jerzy Tape Drive**.
+Projekt efektu taśmowego **Jerzy Tape Drive**.
 
 ## Tape Drive — Analog Vibes
 
@@ -46,9 +46,9 @@ Zmieniony model modulacji nie odtwarza starego efektu bit po bicie.
 
 ## Kompilacja i pobieranie
 
-Workflow **Build Windows VST3** buduje obie wtyczki dla Windows x64,
+Workflow **Build Windows VST3** buduje Tape Drive dla Windows x64,
 uruchamia testy DSP i natywny test otwartego GUI w oknie Windows, a następnie
-publikuje osobne artefakty. Test GUI sprawdza przyciski powiększenia, zmianę DPI,
+publikuje paczkę VST3 i obrazy z testów GUI. Test GUI sprawdza przyciski powiększenia, zmianę DPI,
 wyszukiwanie parametrów pod kursorem oraz rzeczywiste kliknięcia po resize.
 W zakładce **Actions**, w zakończonym przebiegu, wybierz
 **JerzyTapeDrive-Windows-x64** i rozpakuj `JerzyTapeDrive.vst3` do
