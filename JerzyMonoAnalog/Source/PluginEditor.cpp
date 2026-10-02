@@ -69,6 +69,30 @@ void JerzyLookAndFeel::drawRotarySlider(juce::Graphics& g, int x, int y, int w, 
     g.strokePath(arc, juce::PathStrokeType(juce::jmax(1.0f,d*0.012f)));
 }
 
+void JerzyLookAndFeel::drawLinearSlider(juce::Graphics& g, int x, int y, int w, int h,
+                                           float sliderPos, float, float,
+                                           juce::Slider::SliderStyle style, juce::Slider&)
+{
+    auto r = juce::Rectangle<float>((float)x,(float)y,(float)w,(float)h);
+    if (style == juce::Slider::LinearVertical)
+    {
+        auto track = juce::Rectangle<float>(r.getCentreX()-3.0f, r.getY()+5.0f, 6.0f, r.getHeight()-10.0f);
+        g.setColour(C(0xff050607)); g.fillRoundedRectangle(track, 3.0f);
+        g.setColour(C(0xff3a3f44)); g.drawRoundedRectangle(track, 3.0f, 1.0f);
+
+        auto fill = juce::Rectangle<float>(track.getX(), sliderPos, track.getWidth(), track.getBottom()-sliderPos);
+        g.setColour(C(0xff697077)); g.fillRoundedRectangle(fill, 3.0f);
+
+        const float knobH = juce::jmax(8.0f, r.getWidth()*0.20f);
+        auto knob = juce::Rectangle<float>(r.getX()+4.0f, sliderPos-knobH*0.5f, r.getWidth()-8.0f, knobH);
+        g.setColour(C(0xff171a1d)); g.fillRoundedRectangle(knob, 2.0f);
+        g.setColour(C(red)); g.drawRoundedRectangle(knob, 2.0f, 1.5f);
+        g.setColour(C(red)); g.fillRect(knob.reduced(3.0f).withHeight(2.0f).withCentre(knob.getCentre()));
+        return;
+    }
+    juce::LookAndFeel_V4::drawLinearSlider(g,x,y,w,h,sliderPos,0.0f,0.0f,style,*static_cast<juce::Slider*>(nullptr));
+}
+
 void JerzyLookAndFeel::drawToggleButton(juce::Graphics& g, juce::ToggleButton& b, bool over, bool down)
 {
     auto r = b.getLocalBounds().toFloat().reduced(1.0f);
@@ -154,9 +178,11 @@ JerzyMonoAnalogAudioProcessorEditor::JerzyMonoAnalogAudioProcessorEditor(JerzyMo
     setupCombo(glideMode,{"ALWAYS","LEGATO"}); setupCombo(priority,{"LAST","LOW","HIGH"});
 
     for(auto* k:{&osc1Level,&pulseWidth,&osc2Level,&detune,&subLevel,&noiseLevel,&mixDrive,&drift,
-                 &cutoff,&resonance,&filterDrive,&filterEnv,&keyTrack,&aA,&aD,&aS,&aR,&fA,&fD,&fS,&fR,
-                 &lfoRate,&lfoPitch,&lfoFilter,&lfoPWM,&glide,&outDrive,&master})
+                 &cutoff,&resonance,&filterDrive,&filterEnv,&keyTrack,
+                 &lfoRate,&lfoPitch,&lfoFilter,&lfoPWM,&lfoAmp,&lfoFade,&glide,&outDrive,&master})
         setupKnob(*k);
+    for(auto* e:{&aA,&aD,&aS,&aR,&fA,&fD,&fS,&fR})
+        setupEnvSlider(*e);
 
     setupToggle(legato,"LEGATO",C(green)); setupToggle(retrigger,"RETRIGGER",C(red));
     addAndMakeVisible(outputMeter);
@@ -189,6 +215,7 @@ JerzyMonoAnalogAudioProcessorEditor::JerzyMonoAnalogAudioProcessorEditor(JerzyMo
     fAA=std::make_unique<SliderAttachment>(s,"fA",fA); fDA=std::make_unique<SliderAttachment>(s,"fD",fD); fSA=std::make_unique<SliderAttachment>(s,"fS",fS); fRA=std::make_unique<SliderAttachment>(s,"fR",fR);
     lfoRateA=std::make_unique<SliderAttachment>(s,"lfoRate",lfoRate); lfoPitchA=std::make_unique<SliderAttachment>(s,"lfoPitch",lfoPitch);
     lfoFilterA=std::make_unique<SliderAttachment>(s,"lfoFilter",lfoFilter); lfoPWMA=std::make_unique<SliderAttachment>(s,"lfoPWM",lfoPWM);
+    lfoAmpA=std::make_unique<SliderAttachment>(s,"lfoAmp",lfoAmp); lfoFadeA=std::make_unique<SliderAttachment>(s,"lfoFade",lfoFade);
     glideA=std::make_unique<SliderAttachment>(s,"glide",glide); outDriveA=std::make_unique<SliderAttachment>(s,"outDrive",outDrive); masterA=std::make_unique<SliderAttachment>(s,"master",master);
     legatoA=std::make_unique<ButtonAttachment>(s,"legato",legato); retriggerA=std::make_unique<ButtonAttachment>(s,"retrigger",retrigger);
 
@@ -201,12 +228,19 @@ JerzyMonoAnalogAudioProcessorEditor::~JerzyMonoAnalogAudioProcessorEditor()
     setLookAndFeel(nullptr);
 }
 
-void JerzyMonoAnalogAudioProcessorEditor::setupKnob(juce::Slider& k, const juce::String& suffix)
+void JerzyMonoAnalogAudioProcessorEditor::setupKnob(ResetSlider& k, const juce::String& suffix)
 {
     k.setSliderStyle(juce::Slider::RotaryHorizontalVerticalDrag);
     k.setTextBoxStyle(juce::Slider::TextBoxBelow,false,70,16);
     k.setTextValueSuffix(suffix);
     k.setDoubleClickReturnValue(true,0.0);
+    addAndMakeVisible(k);
+}
+void JerzyMonoAnalogAudioProcessorEditor::setupEnvSlider(ResetSlider& k, const juce::String& suffix)
+{
+    k.setSliderStyle(juce::Slider::LinearVertical);
+    k.setTextBoxStyle(juce::Slider::TextBoxBelow,false,62,16);
+    k.setTextValueSuffix(suffix);
     addAndMakeVisible(k);
 }
 void JerzyMonoAnalogAudioProcessorEditor::setupCombo(juce::ComboBox& b, const juce::StringArray& items)
@@ -226,6 +260,16 @@ void JerzyMonoAnalogAudioProcessorEditor::place(juce::Component& c,float x,float
     c.setBounds(juce::roundToInt(x*sx()),juce::roundToInt(y*sy()),juce::roundToInt(w*sx()),juce::roundToInt(h*sy()));
 }
 
+void JerzyMonoAnalogAudioProcessorEditor::drawCtlLabel(juce::Graphics& g, const juce::String& t, float x, float y, float w) const
+{
+    g.setColour(C(0xffcbd0d4));
+    g.setFont(juce::Font(juce::FontOptions(juce::jmax(8.0f,10.5f*s()),juce::Font::bold)));
+    g.drawFittedText(t,
+                     juce::Rectangle<int>(juce::roundToInt(x*sx()),juce::roundToInt(y*sy()),
+                                          juce::roundToInt(w*sx()),juce::roundToInt(15*sy())),
+                     juce::Justification::centred,1);
+}
+
 void JerzyMonoAnalogAudioProcessorEditor::paint(juce::Graphics& g)
 {
     juce::ColourGradient bg(C(0xff090b0d),0,0,C(0xff020304),0,(float)getHeight(),false);
@@ -239,6 +283,26 @@ void JerzyMonoAnalogAudioProcessorEditor::paint(juce::Graphics& g)
 
     drawEnvelope(g,{35*sx(),325*sy(),480*sx(),45*sy()},false);
     drawEnvelope(g,{560*sx(),325*sy(),480*sx(),45*sy()},true);
+
+    // Czytelne podpisy wszystkich kontrolerow
+    drawCtlLabel(g,"WAVE",30,92,115); drawCtlLabel(g,"OCTAVE",150,92,105);
+    drawCtlLabel(g,"LEVEL",35,265,95); drawCtlLabel(g,"PULSE WIDTH",145,265,95);
+    drawCtlLabel(g,"WAVE",295,92,115); drawCtlLabel(g,"OCTAVE",415,92,105);
+    drawCtlLabel(g,"LEVEL",300,265,95); drawCtlLabel(g,"DETUNE",420,265,95);
+    drawCtlLabel(g,"SUB WAVE",590,92,180); drawCtlLabel(g,"SUB LEVEL",590,265,85); drawCtlLabel(g,"NOISE",680,265,85);
+    drawCtlLabel(g,"MIX DRIVE",815,265,78); drawCtlLabel(g,"ANALOG DRIFT",895,265,78);
+    drawCtlLabel(g,"CUTOFF",1010,265,150); drawCtlLabel(g,"RESONANCE",1165,170,78); drawCtlLabel(g,"FILTER DRIVE",1245,170,78);
+    drawCtlLabel(g,"ENV AMOUNT",1165,265,78); drawCtlLabel(g,"KEY TRACK",1245,265,78);
+
+    drawCtlLabel(g,"ATTACK",40,475,105); drawCtlLabel(g,"DECAY",160,475,105); drawCtlLabel(g,"SUSTAIN",280,475,105); drawCtlLabel(g,"RELEASE",400,475,105);
+    drawCtlLabel(g,"ATTACK",565,475,105); drawCtlLabel(g,"DECAY",685,475,105); drawCtlLabel(g,"SUSTAIN",805,475,105); drawCtlLabel(g,"RELEASE",925,475,105);
+
+    drawCtlLabel(g,"WAVEFORM",1080,318,170);
+    drawCtlLabel(g,"RATE",1070,477,55); drawCtlLabel(g,"PITCH",1128,477,55); drawCtlLabel(g,"FILTER",1186,477,55);
+    drawCtlLabel(g,"PWM",1244,477,55); drawCtlLabel(g,"AMP",1302,477,55); drawCtlLabel(g,"FADE IN",1360,477,55);
+
+    drawCtlLabel(g,"GLIDE TIME",40,675,105); drawCtlLabel(g,"GLIDE MODE",160,565,145); drawCtlLabel(g,"NOTE PRIORITY",325,565,145);
+    drawCtlLabel(g,"OUTPUT METER",950,548,180); drawCtlLabel(g,"OUTPUT DRIVE",1160,675,100); drawCtlLabel(g,"MASTER",1290,675,110);
 }
 
 void JerzyMonoAnalogAudioProcessorEditor::drawSection(juce::Graphics& g,const Section& sec) const
@@ -287,12 +351,14 @@ void JerzyMonoAnalogAudioProcessorEditor::resized()
     place(cutoff,1010,112,150,160); place(resonance,1165,115,78,120); place(filterDrive,1245,115,78,120);
     place(filterEnv,1165,190,78,90); place(keyTrack,1245,190,78,90);
 
-    // AMP ENV
-    place(aA,40,375,105,112); place(aD,160,375,105,112); place(aS,280,375,105,112); place(aR,400,375,105,112);
-    // FILTER ENV
-    place(fA,565,375,105,112); place(fD,685,375,105,112); place(fS,805,375,105,112); place(fR,925,375,105,112);
-    // LFO
-    place(lfoWave,1085,333,165,30); place(lfoRate,1085,378,75,112); place(lfoPitch,1165,378,75,112); place(lfoFilter,1245,378,75,112); place(lfoPWM,1325,378,75,112);
+    // AMP ENV - pionowe suwaki ADSR
+    place(aA,55,375,70,95); place(aD,175,375,70,95); place(aS,295,375,70,95); place(aR,415,375,70,95);
+    // FILTER ENV - pionowe suwaki ADSR
+    place(fA,580,375,70,95); place(fD,700,375,70,95); place(fS,820,375,70,95); place(fR,940,375,70,95);
+    // LFO - 7 parametrow: waveform + 6 modulacji
+    place(lfoWave,1080,335,170,28);
+    place(lfoRate,1070,380,55,92); place(lfoPitch,1128,380,55,92); place(lfoFilter,1186,380,55,92);
+    place(lfoPWM,1244,380,55,92); place(lfoAmp,1302,380,55,92); place(lfoFade,1360,380,55,92);
 
     // PLAY
     place(glide,40,558,105,120); place(glideMode,160,585,145,34); place(priority,325,585,145,34);
