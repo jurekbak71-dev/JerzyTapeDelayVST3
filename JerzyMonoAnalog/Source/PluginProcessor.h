@@ -28,7 +28,9 @@ public:
 
     juce::AudioProcessorValueTreeState apvts;
     static juce::AudioProcessorValueTreeState::ParameterLayout createLayout();
+    float getOutputMeter() const noexcept { return outputMeter.load(); }
 private:
     jerzy::MonoAnalogEngine engine;
+    std::atomic<float> outputMeter { 0.0f };
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR(JerzyMonoAnalogAudioProcessor)
 };
