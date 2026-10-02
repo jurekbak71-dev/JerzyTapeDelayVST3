@@ -347,6 +347,7 @@ struct MonoParameters
     double filterAttack = 0.002, filterDecay = 0.22, filterSustain = 0.2, filterRelease = 0.18;
     double glideSeconds = 0.0;
     double lfoRate = 2.0, lfoPitchCents = 0.0, lfoFilterOct = 0.0, lfoPWM = 0.0;
+    double lfoAmp = 0.0, lfoFadeSeconds = 0.0;
     double outputDrive = 0.12, master = 0.8, analogDriftCents = 2.0;
     NotePriority priority = NotePriority::last;
     GlideMode glideMode = GlideMode::legatoOnly;
@@ -381,7 +382,7 @@ public:
         osc1.reset(); osc2.reset(); sub.reset(); lfo.reset(); filter.reset(); ampEnv.reset(); filterEnv.reset(); outputDC.reset();
         decimA.reset(); decimB.reset();
         currentNote = -1; targetMidi = currentMidi = 60.0; heldNotes.clear();
-        lastOutput = 0.0;
+        lastOutput = 0.0; lfoFadeValue = 1.0;
     }
 
     void setParameters(const MonoParameters& p) { params = p; }
@@ -396,6 +397,7 @@ public:
 
         const bool retrig = !hadHeldNotes || !params.legato || params.retrigger;
         if (retrig) { ampEnv.noteOn(); filterEnv.noteOn(); }
+        lfoFadeValue = params.lfoFadeSeconds > 0.0 ? 0.0 : 1.0;
 
         const bool shouldGlide = params.glideSeconds > 0.0
                               && (params.glideMode == GlideMode::always || hadHeldNotes);
@@ -464,11 +466,16 @@ private:
 
         lfo.set(params.lfoRate, params.lfoWave);
         const double l = lfo.process();
-        const double pitchMod = l * params.lfoPitchCents / 100.0;
+        if (params.lfoFadeSeconds <= 0.0)
+            lfoFadeValue = 1.0;
+        else
+            lfoFadeValue = juce::jmin(1.0, lfoFadeValue + 1.0 / (params.lfoFadeSeconds * sampleRate));
+        const double lf = l * lfoFadeValue;
+        const double pitchMod = lf * params.lfoPitchCents / 100.0;
         const double baseHz = 440.0 * std::pow(2.0, (currentMidi + pitchMod - 69.0) / 12.0);
 
         osc1.setWave(params.osc1Wave); osc2.setWave(params.osc2Wave); sub.setWave(params.subWave);
-        const double modPW = juce::jlimit(0.05, 0.95, params.pulseWidth + l * params.lfoPWM * 0.45);
+        const double modPW = juce::jlimit(0.05, 0.95, params.pulseWidth + lf * params.lfoPWM * 0.45);
         osc1.setPulseWidth(modPW); osc2.setPulseWidth(modPW);
         osc1.setDriftCents(params.analogDriftCents);
         osc2.setDriftCents(params.analogDriftCents * 1.13);
@@ -492,9 +499,10 @@ private:
         const double ae = ampEnv.process();
 
         filter.setParams(params.cutoffHz, params.resonance, params.filterDrive, params.keyTrack, currentMidi);
-        double y = filter.process(mix, fe * params.filterEnvOct + l * params.lfoFilterOct);
+        double y = filter.process(mix, fe * params.filterEnvOct + lf * params.lfoFilterOct);
 
-        const double vca = y * ae * velocityGain;
+        const double tremolo = 1.0 - params.lfoAmp * 0.5 * (lf + 1.0);
+        const double vca = y * ae * velocityGain * tremolo;
         y = saturateAsymmetric(vca * 1.22) / 1.10;
 
         const double outGain = 1.0 + 8.0 * params.outputDrive;
@@ -515,6 +523,7 @@ private:
     juce::Array<int> heldNotes;
     int currentNote = -1;
     double targetMidi = 60.0, currentMidi = 60.0, velocityGain = 1.0, lastOutput = 0.0;
+    double lfoFadeValue = 1.0;
     std::mt19937 noiseRng;
     std::uniform_real_distribution<double> noiseDist {-1.0, 1.0};
 };
