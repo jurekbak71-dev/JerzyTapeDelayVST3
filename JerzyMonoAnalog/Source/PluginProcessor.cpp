@@ -58,6 +58,8 @@ void JerzyMonoAnalogAudioProcessor::processBlock(juce::AudioBuffer<float>& b, ju
     p.lfoPitchCents = apvts.getRawParameterValue("lfoPitch")->load();
     p.lfoFilterOct = apvts.getRawParameterValue("lfoFilter")->load();
     p.lfoPWM = apvts.getRawParameterValue("lfoPWM")->load();
+    p.lfoAmp = apvts.getRawParameterValue("lfoAmp")->load();
+    p.lfoFadeSeconds = apvts.getRawParameterValue("lfoFade")->load();
     p.outputDrive = apvts.getRawParameterValue("outDrive")->load();
     p.master = apvts.getRawParameterValue("master")->load();
     p.analogDriftCents = apvts.getRawParameterValue("drift")->load();
@@ -134,6 +136,8 @@ juce::AudioProcessorValueTreeState::ParameterLayout JerzyMonoAnalogAudioProcesso
     l.add(std::make_unique<P>("lfoPitch","LFO Pitch",0.0f,100.0f,0.0f));
     l.add(std::make_unique<P>("lfoFilter","LFO Filter",0.0f,4.0f,0.0f));
     l.add(std::make_unique<P>("lfoPWM","LFO PWM",0.0f,1.0f,0.0f));
+    l.add(std::make_unique<P>("lfoAmp","LFO Amp Mod",0.0f,1.0f,0.0f));
+    l.add(std::make_unique<P>("lfoFade","LFO Fade In",juce::NormalisableRange<float>(0.0f,5.0f,0.0f,0.35f),0.0f));
     l.add(std::make_unique<P>("outDrive","Output Drive",0.0f,1.0f,0.12f));
     l.add(std::make_unique<P>("master","Master",0.0f,1.0f,0.8f));
     l.add(std::make_unique<P>("drift","Analog Drift",0.0f,6.0f,2.0f));
