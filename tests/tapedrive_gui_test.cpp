@@ -18,6 +18,8 @@
 using namespace Steinberg;
 using namespace Steinberg::Vst;
 using namespace JerzyAudio;
+using RenderProbe=int(__cdecl*)(IPlugView*,const char*);
+RenderProbe renderProbe=nullptr;
 void require(bool value,const char* message){if(!value)throw std::runtime_error(message);}
 class HostFrame final : public U::Implements<U::Directly<IPlugFrame>> {
 public:
@@ -60,6 +62,9 @@ void checkPanel(IPlugView* view,IEditController* controller,HWND parent){
                                      static_cast<int32>(std::lround(p.y*r.getHeight()/672.0)),id)==kResultTrue&&id==p.id,
                 "GUI occupies only part of the window: a scaled control cannot be found");
     }
+    if(r.getWidth()==1980){
+        require(renderProbe(view,"tapedrive-render-1980x1108.png")==1,"Rendered panel leaves blank pixels at the window edges");
+    }
     const double before=controller->getParamNormalized(kDriveBypassId);
     click(view,parent,985,614);
     require(controller->getParamNormalized(kDriveBypassId)!=(before),"Mouse click at scaled bypass position did not change the parameter");
@@ -71,6 +76,9 @@ int main(int argc,char** argv){try{
     SetProcessDPIAware();CoInitializeEx(nullptr,COINIT_APARTMENTTHREADED);
     std::string error;auto module=VST3::Hosting::Module::create(argv[1],error);
     if(!module)throw std::runtime_error(error);
+    const auto nativeModule=GetModuleHandleA(argv[1]);
+    renderProbe=reinterpret_cast<RenderProbe>(GetProcAddress(nativeModule,"JerzyRenderEditorForTest"));
+    require(renderProbe!=nullptr,"Render probe missing from test build");
     HostApplication host;module->getFactory().setHostContext(&host);
     IPtr<IEditController> controller;
     for(const auto& info:module->getFactory().classInfos())
@@ -86,6 +94,7 @@ int main(int argc,char** argv){try{
     // Hosts can send DPI and restored sizes before a native frame exists.
     require(scale->setContentScaleFactor(1.25f)==kResultTrue,"Pre-attach DPI failed");
     auto initial=sizeOf(view);require(initial.getWidth()==1500&&initial.getHeight()==840,"Pre-attach DPI must affect advertised editor size");
+    MoveWindow(frame.window,0,0,initial.getWidth(),initial.getHeight(),FALSE);
     view->setFrame(&frame);
     require(view->attached(frame.window,kPlatformTypeHWND)==kResultTrue,"Cannot attach real VST3 GUI");pump();
     checkPanel(view,controller,frame.window);
@@ -103,11 +112,21 @@ int main(int argc,char** argv){try{
         ViewRect restored(0,0,1980,1108);
         require(frame.resizeView(view,&restored)==kResultTrue,"Direct host resize was rejected");
         checkPanel(view,controller,frame.window);
+        // Reproduce Windows wrappers which resize native windows without the
+        // VST3 onSize callback. The original integration test missed this path.
+        MoveWindow(frame.window,0,0,1700,952,FALSE);pump();
+        auto nativeSize=sizeOf(view);
+        require(nativeSize.getWidth()==1700&&nativeSize.getHeight()==952,"Parent HWND resize without onSize left the panel at its old size");
+        checkPanel(view,controller,frame.window);
+        MoveWindow(editorWindow(frame.window),0,0,1500,840,FALSE);pump();
+        nativeSize=sizeOf(view);
+        require(nativeSize.getWidth()==1500&&nativeSize.getHeight()==840,"Child HWND resize without onSize left the panel at its old size");
+        checkPanel(view,controller,frame.window);
         frame.reject=true;const auto old=sizeOf(view);
         click(view,frame.window,1127,602);
         auto unchanged=sizeOf(view);require(old.getWidth()==unchanged.getWidth()&&old.getHeight()==unchanged.getHeight(),"Rejected resize changed the accepted viewport");
         checkPanel(view,controller,frame.window);frame.reject=false;
-        std::cout<<"Real HWND GUI: DPI "<<dpi<<", all zoom buttons, parameter hit areas, bypass mouse clicks, direct host resize and rejection OK\n";
+        std::cout<<"Real HWND GUI: DPI "<<dpi<<", all zoom buttons, parameter hit areas, bypass mouse clicks, VST3 and native HWND resize, and rejection OK\n";
     }
     view->removed();view->setFrame(nullptr);scale=nullptr;view=nullptr;
     DestroyWindow(frame.window);controller->terminate();controller=nullptr;module.reset();CoUninitialize();

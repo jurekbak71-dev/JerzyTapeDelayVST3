@@ -64,6 +64,9 @@ smtg_add_vst3plugin(JerzyTapeDrive
     resource/tapedrive_vintage.uidesc
 )
 target_link_libraries(JerzyTapeDrive PRIVATE sdk vstgui_support)
+if(WIN32)
+    target_link_libraries(JerzyTapeDrive PRIVATE comctl32)
+endif()
 target_compile_features(JerzyTapeDrive PUBLIC cxx_std_17)
 smtg_target_configure_version_file(JerzyTapeDrive)
 smtg_target_add_plugin_resources(JerzyTapeDrive
@@ -86,6 +89,7 @@ if(BUILD_TESTING)
 endif()
 
 if(BUILD_TESTING AND WIN32)
+    target_sources(JerzyTapeDrive PRIVATE tests/tapedrive_render_probe.cpp)
     add_executable(TapeDriveGUITests
         tests/tapedrive_gui_test.cpp
         ${JERZY_VST3_SDK_DIR}/public.sdk/source/vst/hosting/module_win32.cpp

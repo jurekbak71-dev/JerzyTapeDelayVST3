@@ -40,6 +40,14 @@ jobs:
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
           ctest --test-dir build -C Release --verbose --output-on-failure -R "^(Tape(Drive|Delay)DSP|TapeDriveGUI)$"
 
+      - name: Upload GUI render evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: TapeDrive-GUI-render
+          path: build/tapedrive-render-*.png
+          if-no-files-found: ignore
+
       - name: Collect VST3 bundles
         shell: pwsh
         run: |

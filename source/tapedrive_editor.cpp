@@ -3,8 +3,61 @@
 #include "vstgui/lib/cframe.h"
 #include "vstgui/lib/cgraphicstransform.h"
 #include "vstgui/lib/controls/ccontrol.h"
+#include "vstgui/lib/platform/iplatformframe.h"
+#if defined(_WIN32)
+#include <windows.h>
+#include <commctrl.h>
+#endif
 
 namespace JerzyAudio {
+
+// Some Windows hosts resize the embedding HWND without calling IPlugView::onSize.
+// Observe that immediate parent only (never the DAW's top-level window), as well
+// as direct native child resizes. Keep SDK callbacks and native resizes in sync.
+struct TapeDriveEditor::NativeResizeWatcher {
+#if defined(_WIN32)
+    TapeDriveEditor& editor;
+    HWND parent=nullptr, child=nullptr;
+    NativeResizeWatcher(TapeDriveEditor& e, void* p, void* c):editor(e),parent(static_cast<HWND>(p)),child(static_cast<HWND>(c)) {
+        SetWindowSubclass(parent,callback,reinterpret_cast<UINT_PTR>(this),reinterpret_cast<DWORD_PTR>(this));
+        SetWindowSubclass(child,callback,reinterpret_cast<UINT_PTR>(this),reinterpret_cast<DWORD_PTR>(this));
+    }
+    ~NativeResizeWatcher(){
+        if(parent)RemoveWindowSubclass(parent,callback,reinterpret_cast<UINT_PTR>(this));
+        if(child)RemoveWindowSubclass(child,callback,reinterpret_cast<UINT_PTR>(this));
+    }
+    void fit(HWND window){
+        if(editor.applyingSize || !editor.getFrame())return;
+        RECT r{};
+        if(!GetClientRect(window,&r) || r.right<=0 || r.bottom<=0)return;
+        const auto current=editor.getRect();
+        if(current.getWidth()==r.right && current.getHeight()==r.bottom)return;
+        Steinberg::ViewRect rect(0,0,r.right,r.bottom);
+        editor.onSize(&rect);
+    }
+    static LRESULT CALLBACK callback(HWND window,UINT message,WPARAM w,LPARAM l,UINT_PTR id,DWORD_PTR data){
+        auto* self=reinterpret_cast<NativeResizeWatcher*>(data);
+        if(message==WM_NCDESTROY){
+            RemoveWindowSubclass(window,callback,id);
+            if(window==self->parent)self->parent=nullptr;
+            if(window==self->child)self->child=nullptr;
+            return DefSubclassProc(window,message,w,l);
+        }
+        const auto result=DefSubclassProc(window,message,w,l);
+        if(message==WM_SIZE && w!=SIZE_MINIMIZED)self->fit(window);
+        return result;
+    }
+#else
+    NativeResizeWatcher(TapeDriveEditor&,void*,void*){}
+#endif
+};
+
+TapeDriveEditor::~TapeDriveEditor(){delete nativeWatcher;}
+void PLUGIN_API TapeDriveEditor::close(){
+    delete nativeWatcher;nativeWatcher=nullptr;
+    VSTGUI::VST3Editor::close();
+}
+
 
 bool PLUGIN_API TapeDriveEditor::open(void* parent,const VSTGUI::PlatformType& type)
 {
@@ -12,6 +65,11 @@ bool PLUGIN_API TapeDriveEditor::open(void* parent,const VSTGUI::PlatformType& t
     // VST3Editor recreates the frame transform while loading its template.
     // Reconcile it with the actual host rectangle after the template exists.
     fitHostSize(getRect());
+#if defined(_WIN32)
+    delete nativeWatcher;
+    nativeWatcher=new NativeResizeWatcher(*this,parent,getFrame()->getPlatformFrame()->getPlatformRepresentation());
+    nativeWatcher->fit(static_cast<HWND>(parent));
+#endif
     return true;
 }
 
