@@ -83,6 +83,9 @@ void JerzyMonoAnalogAudioProcessor::processBlock(juce::AudioBuffer<float>& b, ju
         }
         const float y = engine.processSample();
         for (int ch = 0; ch < b.getNumChannels(); ++ch) b.setSample(ch, s, y);
+        const float ay = std::abs(y);
+        const float old = outputMeter.load();
+        outputMeter.store(ay > old ? ay : old * 0.9975f);
     }
 }
 
