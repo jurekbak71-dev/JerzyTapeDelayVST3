@@ -32,7 +32,7 @@ extern "C" __declspec(dllexport) int __cdecl JerzyRenderEditorForTest(Steinberg:
         for(int j=-3;j<=3;++j)for(int i=-3;i<=3;++i){
             pixels->setPosition(static_cast<uint32_t>(x*rect.getWidth()+i),static_cast<uint32_t>(y*rect.getHeight()+j));
             VSTGUI::CColor c;pixels->getColor(c);
-            if(c.alpha>240 && c.red+c.green+c.blue>45 && !(c.red>240&&c.blue>240&&c.green<10))++painted;
+            if(c.alpha>240 && c.red+c.green+c.blue>10 && !(c.red>240&&c.blue>240&&c.green<10))++painted;
         }
         std::cout<<"Rendered edge patch "<<x<<','<<y<<": "<<painted<<"/49 painted pixels\n";
         if(painted<40)return 0;

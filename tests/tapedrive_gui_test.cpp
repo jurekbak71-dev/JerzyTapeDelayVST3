@@ -114,9 +114,10 @@ int main(int argc,char** argv){try{
         checkPanel(view,controller,frame.window);
         // Reproduce Windows wrappers which resize native windows without the
         // VST3 onSize callback. The original integration test missed this path.
-        MoveWindow(frame.window,0,0,1700,952,FALSE);pump();
+        MoveWindow(frame.window,0,0,1200,672,FALSE);pump();
+        MoveWindow(frame.window,0,0,1980,1108,FALSE);pump();
         auto nativeSize=sizeOf(view);
-        require(nativeSize.getWidth()==1700&&nativeSize.getHeight()==952,"Parent HWND resize without onSize left the panel at its old size");
+        require(nativeSize.getWidth()==1980&&nativeSize.getHeight()==1108,"Parent HWND resize without onSize left the panel at its old size");
         checkPanel(view,controller,frame.window);
         MoveWindow(editorWindow(frame.window),0,0,1500,840,FALSE);pump();
         nativeSize=sizeOf(view);
