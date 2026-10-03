@@ -23,7 +23,7 @@ public:
     bool acceptsMidi() const override { return false; }
     bool producesMidi() const override { return false; }
     bool isMidiEffect() const override { return false; }
-    double getTailLengthSeconds() const override { return 0.0; }
+    double getTailLengthSeconds() const override { return 0.08; }
     int getNumPrograms() override { return 1; }
     int getCurrentProgram() override { return 0; }
     void setCurrentProgram(int) override {}
@@ -42,6 +42,7 @@ private:
     static APVTS::ParameterLayout createParameterLayout();
     void analysePitch() noexcept;
     float tunedRatio() const noexcept;
+    void processVocalChain(juce::AudioBuffer<float>& buffer) noexcept;
 
     struct Biquad
     {
@@ -54,25 +55,14 @@ private:
     };
 
     static constexpr int detectorSize = 4096;
-    std::array<float, detectorSize> detector{};
+    std::array<float, detectorSize> detector {};
     int detectorWrite = 0;
     int samplesSinceAnalysis = 0;
     float detectedMidi = -1.0f;
     float targetPitchRatio = 1.0f;
     float smoothedRatio = 1.0f;
     double currentSampleRate = 44100.0;
-    std::array<std::array<Biquad, 3>, 2> eqFilters;
-    std::array<float, 2> compressorEnvelope {};
-    juce::SmoothedValue<float> mixSmoother;
-    juce::SmoothedValue<float> speedSmoother;
-    juce::SmoothedValue<float> compThresholdSmoother;
-    juce::SmoothedValue<float> compRatioSmoother;
-    juce::SmoothedValue<float> compMakeupSmoother;
-    juce::SmoothedValue<float> compBlendSmoother;
-    juce::SmoothedValue<float> eqBlendSmoother;
-    juce::SmoothedValue<float> outputGainSmoother;
-    std::atomic<float> inputPeak { 0.0f };
-    std::atomic<float> outputPeak { 0.0f };
+
     int maximumBlockSize = 512;
     int dryDelayLength = 1;
     int dryDelayWrite = 0;
@@ -83,6 +73,24 @@ private:
     juce::AudioBuffer<float> dryDelayBuffer;
     juce::AudioBuffer<float> startupBuffer;
     signalsmith::stretch::SignalsmithStretch<float> stretcher;
+    juce::SmoothedValue<float> mixSmoother;
+    juce::SmoothedValue<float> speedSmoother;
+
+    std::array<float, 2> gateEnvelope {};
+    std::array<float, 2> noiseHpState {};
+    std::array<float, 2> noisePrevInput {};
+    std::array<float, 2> deEssSideState {};
+    std::array<float, 2> deEssPrevInput {};
+    float deEssEnvelope = 0.0f;
+    float compressorEnvelope = 0.0f;
+    float doublerPhase = 0.0f;
+    int doublerWrite = 0;
+    int doublerBufferLength = 1;
+    juce::AudioBuffer<float> doublerBuffer;
+    std::array<std::array<Biquad, 3>, 2> vocalEq;
+
+    std::atomic<float> inputPeak { 0.0f };
+    std::atomic<float> outputPeak { 0.0f };
 
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR(JerzyAutoTuneAudioProcessor)
 };
