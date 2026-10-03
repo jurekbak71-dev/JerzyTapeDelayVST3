@@ -29,11 +29,27 @@ public:
     juce::AudioProcessorValueTreeState apvts;
     static juce::AudioProcessorValueTreeState::ParameterLayout createLayout();
     float getOutputMeter() const noexcept { return outputMeter.load(); }
+
+    enum class GridMode { sequencer = 0, launch = 1 };
+    void setGridMode(GridMode m) noexcept { gridMode.store((int)m); }
+    GridMode getGridMode() const noexcept { return (GridMode)gridMode.load(); }
+    void setGridBank(int b) noexcept { gridBank.store(juce::jlimit(0,7,b)); }
+    int getGridBank() const noexcept { return gridBank.load(); }
+    void setGridStep(int bank,int column,int row,bool on);
+    bool getGridStep(int bank,int column,int row) const;
+    void clearGridBank(int bank);
+    void launchPadNoteOn(int padIndex);
+    void launchPadNoteOff(int padIndex);
+    int getGridPlayColumn() const noexcept { return gridPlayColumn.load(); }
+    int getGridRootNote() const noexcept { return gridRootNote.load(); }
+    void setGridRootNote(int n) noexcept { gridRootNote.store(juce::jlimit(24,84,n)); }
 private:
     int getChoiceIndex(const char* id) const;
     int chooseArpNote(int pattern, int step);
     bool arpRhythmGate(int rhythm, int step) const;
     void resetArpState();
+    void processGridSequencerSample(double bpm);
+    int gridNoteForRow(int row) const;
     jerzy::MonoAnalogEngine engine;
     std::atomic<float> outputMeter { 0.0f };
     double currentSampleRate = 44100.0;
@@ -45,5 +61,15 @@ private:
     juce::Array<int> arpLatchedNotes;
     juce::Array<int> physicalHeldNotes;
     std::mt19937 arpRng { 0x51a7u };
+
+    std::array<std::atomic<uint8_t>, 8*8*8> gridPattern {};
+    std::atomic<int> gridMode { 0 };
+    std::atomic<int> gridBank { 0 };
+    std::atomic<int> gridRootNote { 48 };
+    std::atomic<int> gridPlayColumn { -1 };
+    std::atomic<int> launchPressedNote { -1 };
+    double gridSamplesToNext = 0.0;
+    int gridGlobalStep = 0;
+    int gridCurrentNote = -1;
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR(JerzyMonoAnalogAudioProcessor)
 };
