@@ -23,7 +23,7 @@ public:
     bool acceptsMidi() const override { return false; }
     bool producesMidi() const override { return false; }
     bool isMidiEffect() const override { return false; }
-    double getTailLengthSeconds() const override { return 0.08; }
+    double getTailLengthSeconds() const override { return 0.10; }
     int getNumPrograms() override { return 1; }
     int getCurrentProgram() override { return 0; }
     void setCurrentProgram(int) override {}
@@ -42,7 +42,7 @@ private:
     static APVTS::ParameterLayout createParameterLayout();
     void analysePitch() noexcept;
     float tunedRatio() const noexcept;
-    void processVocalChain(juce::AudioBuffer<float>& buffer) noexcept;
+    void processVocalChain(juce::AudioBuffer<float>&) noexcept;
 
     struct Biquad
     {
@@ -51,46 +51,33 @@ private:
         float x1 = 0.0f, x2 = 0.0f, y1 = 0.0f, y2 = 0.0f;
         void setTarget(const std::array<float, 5>& c) noexcept { targetCoefficients = c; }
         void reset() noexcept { x1 = x2 = y1 = y2 = 0.0f; }
-        float process(float input, float coefficientSmoothing) noexcept;
+        float process(float input, float smoothing) noexcept;
     };
 
     static constexpr int detectorSize = 4096;
     std::array<float, detectorSize> detector {};
-    int detectorWrite = 0;
-    int samplesSinceAnalysis = 0;
-    float detectedMidi = -1.0f;
-    float targetPitchRatio = 1.0f;
-    float smoothedRatio = 1.0f;
+    int detectorWrite = 0, samplesSinceAnalysis = 0;
+    float detectedMidi = -1.0f, targetPitchRatio = 1.0f, smoothedRatio = 1.0f;
     double currentSampleRate = 44100.0;
 
-    int maximumBlockSize = 512;
-    int dryDelayLength = 1;
-    int dryDelayWrite = 0;
-    int seekInputLength = 0;
-    int startupInputCount = 0;
+    int maximumBlockSize = 512, dryDelayLength = 1, dryDelayWrite = 0;
+    int seekInputLength = 0, startupInputCount = 0;
     bool stretcherReady = false;
-    juce::AudioBuffer<float> stretchedBuffer;
-    juce::AudioBuffer<float> dryDelayBuffer;
-    juce::AudioBuffer<float> startupBuffer;
+    juce::AudioBuffer<float> stretchedBuffer, dryDelayBuffer, startupBuffer;
     signalsmith::stretch::SignalsmithStretch<float> stretcher;
-    juce::SmoothedValue<float> mixSmoother;
-    juce::SmoothedValue<float> speedSmoother;
+    juce::SmoothedValue<float> mixSmoother, speedSmoother;
 
-    std::array<float, 2> gateEnvelope {};
-    std::array<float, 2> noiseHpState {};
-    std::array<float, 2> noisePrevInput {};
-    std::array<float, 2> deEssSideState {};
-    std::array<float, 2> deEssPrevInput {};
-    float deEssEnvelope = 0.0f;
-    float compressorEnvelope = 0.0f;
+    std::array<float, 2> gateEnvelope {}, gateGain {};
+    std::array<int, 2> gateHoldSamples {};
+    std::array<float, 2> noiseEnvelope {}, noiseHpState {}, noisePrevInput {};
+    std::array<float, 2> deEssSideLow {}, satToneLow {};
+    float deEssEnvelope = 0.0f, compressorEnvelope = 0.0f;
     float doublerPhase = 0.0f;
-    int doublerWrite = 0;
-    int doublerBufferLength = 1;
+    int doublerWrite = 0, doublerBufferLength = 1;
     juce::AudioBuffer<float> doublerBuffer;
-    std::array<std::array<Biquad, 3>, 2> vocalEq;
+    std::array<std::array<Biquad, 5>, 2> vocalEq;
 
-    std::atomic<float> inputPeak { 0.0f };
-    std::atomic<float> outputPeak { 0.0f };
+    std::atomic<float> inputPeak { 0.0f }, outputPeak { 0.0f };
 
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR(JerzyAutoTuneAudioProcessor)
 };
