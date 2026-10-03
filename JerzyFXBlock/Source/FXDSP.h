@@ -130,31 +130,45 @@ public:
         chorus.prepare(sr); rotary.prepare(sr); pitch.prepare(sr);
         reverb.setSampleRate(sr); shimmerVerb.setSampleRate(sr);
     }
-    void process(float& l,float& r,
-                 bool revOn,float revSize,float revDamp,float revMix,
-                 bool delOn,float delMs,float delFb,float delMix,
-                 bool choOn,float choRate,float choDepth,float choMix,
-                 bool widOn,float width,float widMix,
-                 bool rotOn,float rotRate,float rotDepth,float rotMix,
-                 bool shOn,float shAmt,float shMix)
+
+    void processReverb(float& l,float& r,float size,float damp,float mix)
     {
-        if(revOn)
-        {
-            juce::Reverb::Parameters p; p.roomSize=revSize; p.damping=revDamp; p.wetLevel=revMix; p.dryLevel=1-revMix; p.width=1;
-            reverb.setParameters(p); reverb.processStereo(&l,&r,1);
-        }
-        if(delOn) delay.process(l,r,delMs,delMs*1.013f,delFb,delMix);
-        if(choOn) chorus.process(l,r,choRate,choDepth,12.0f,choMix,0.23f);
-        if(widOn) expander.process(l,r,width,widMix);
-        if(rotOn) rotary.process(l,r,rotRate,rotDepth,rotMix);
-        if(shOn)
-        {
-            float upL=0,upR=0; pitch.process(l,r,upL,upR);
-            juce::Reverb::Parameters p; p.roomSize=0.88f; p.damping=0.25f; p.wetLevel=0.75f*shAmt; p.dryLevel=0; p.width=1;
-            shimmerVerb.setParameters(p); shimmerVerb.processStereo(&upL,&upR,1);
-            l=l*(1-shMix)+upL*shMix; r=r*(1-shMix)+upR*shMix;
-        }
+        juce::Reverb::Parameters p;
+        p.roomSize=size; p.damping=damp; p.wetLevel=mix; p.dryLevel=1.0f-mix; p.width=1.0f;
+        reverb.setParameters(p); reverb.processStereo(&l,&r,1);
     }
+
+    void processDelay(float& l,float& r,float ms,float fb,float mix)
+    {
+        delay.process(l,r,ms,ms*1.013f,fb,mix);
+    }
+
+    void processChorus(float& l,float& r,float rate,float depth,float mix)
+    {
+        chorus.process(l,r,rate,depth,12.0f,mix,0.23f);
+    }
+
+    void processWidth(float& l,float& r,float width,float mix)
+    {
+        expander.process(l,r,width,mix);
+    }
+
+    void processRotary(float& l,float& r,float rate,float depth,float mix)
+    {
+        rotary.process(l,r,rate,depth,mix);
+    }
+
+    void processShimmer(float& l,float& r,float amount,float mix)
+    {
+        float upL=0.0f,upR=0.0f;
+        pitch.process(l,r,upL,upR);
+        juce::Reverb::Parameters p;
+        p.roomSize=0.88f; p.damping=0.25f; p.wetLevel=0.75f*amount; p.dryLevel=0.0f; p.width=1.0f;
+        shimmerVerb.setParameters(p); shimmerVerb.processStereo(&upL,&upR,1);
+        l=l*(1.0f-mix)+upL*mix;
+        r=r*(1.0f-mix)+upR*mix;
+    }
+
 private:
     double sampleRate=44100;
     juce::Reverb reverb,shimmerVerb;
