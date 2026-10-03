@@ -27,7 +27,7 @@ public:
     void paint(juce::Graphics&) override; void resized() override;
 private:
     using SA=juce::AudioProcessorValueTreeState::SliderAttachment; using BA=juce::AudioProcessorValueTreeState::ButtonAttachment;
-    void knob(FXKnob&,const juce::String&,const juce::String&={}); void tog(juce::ToggleButton&,const juce::String&,juce::Colour);
+    void knob(FXKnob&, const juce::String&, const juce::String& unit = {}); void tog(juce::ToggleButton&,const juce::String&,juce::Colour);
     void place(juce::Component&,float,float,float,float);
     JerzyFXBlockAudioProcessor& proc; FXLook look;
     juce::Label title,sub;
