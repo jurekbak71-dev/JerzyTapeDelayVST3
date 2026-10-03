@@ -1,0 +1,31 @@
+name: Build Jerzy FX Block VST3
+on:
+  workflow_dispatch:
+  push:
+    branches: [ jerzy-fx-block-vst ]
+    paths: [ 'JerzyFXBlock/**', '.github/workflows/jerzy-fx-block-windows.yml' ]
+jobs:
+  build:
+    runs-on: windows-2022
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - name: Configure
+        shell: pwsh
+        run: cmake -S JerzyFXBlock -B JerzyFXBlock/build -G "Visual Studio 17 2022" -A x64
+      - name: Build
+        shell: pwsh
+        run: cmake --build JerzyFXBlock/build --config Release --parallel
+      - name: Locate
+        id: locate
+        shell: pwsh
+        run: |
+          $plugin = Get-ChildItem -Path "JerzyFXBlock/build" -Recurse -Directory -Filter "Jerzy FX Block.vst3" | Select-Object -First 1
+          if (-not $plugin) { throw "VST3 not found" }
+          "plugin_path=$($plugin.FullName)" >> $env:GITHUB_OUTPUT
+      - uses: actions/upload-artifact@v4
+        with:
+          name: Jerzy-FX-Block-Windows-VST3
+          path: ${{ steps.locate.outputs.plugin_path }}
+          if-no-files-found: error
+          retention-days: 30
