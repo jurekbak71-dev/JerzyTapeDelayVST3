@@ -16,11 +16,11 @@ FetchContent_MakeAvailable(JUCE)
 
 juce_add_plugin(JerzyMonoAnalog
     COMPANY_NAME "Jerzy"
-    BUNDLE_ID "pl.jerzy.monoanalog"
+    BUNDLE_ID "pl.jerzy.monoanaloggrid"
     PLUGIN_MANUFACTURER_CODE Jrzy
-    PLUGIN_CODE Jmna
+    PLUGIN_CODE Jmag
     FORMATS VST3 Standalone
-    PRODUCT_NAME "Jerzy Mono Analog"
+    PRODUCT_NAME "Jerzy Mono Analog Grid"
     IS_SYNTH TRUE
     NEEDS_MIDI_INPUT TRUE
     NEEDS_MIDI_OUTPUT FALSE
