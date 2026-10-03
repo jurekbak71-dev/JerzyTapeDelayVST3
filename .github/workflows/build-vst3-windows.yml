@@ -35,9 +35,9 @@ jobs:
       - name: DSP and native GUI regression tests
         shell: pwsh
         run: |
-          cmake --build build --config Release --target TapeDriveDSPTests TapeDriveGUITests --parallel
+          cmake --build build --config Release --target TapeDriveDSPTests TapeDriveCharacterTests TapeDriveGUITests --parallel
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
-          ctest --test-dir build -C Release --verbose --output-on-failure -R "^(TapeDriveDSP|TapeDriveGUI)$"
+          ctest --test-dir build -C Release --verbose --output-on-failure -R "^(TapeDriveDSP|TapeDriveCharacter|TapeDriveGUI)$"
 
       - name: Upload GUI render evidence
         if: always()
@@ -57,13 +57,13 @@ jobs:
           $drive = Get-ChildItem -Path build -Recurse -Directory -Filter "JerzyTapeDrive.vst3" | Select-Object -First 1
           if (-not $drive) { throw "JerzyTapeDrive.vst3 was not produced" }
           Copy-Item -Recurse -Force $drive.FullName artifact/JerzyTapeDrive.vst3
-          Compress-Archive -Path artifact/JerzyTapeDrive.vst3 -DestinationPath JerzyTapeDrive_Windows_x64.zip -Force
+          Compress-Archive -Path artifact/JerzyTapeDrive.vst3 -DestinationPath JerzyTapeDrive_Vector_1.1_Windows_x64.zip -Force
 
       - name: Upload Tape Drive
         uses: actions/upload-artifact@v4
         with:
-          name: JerzyTapeDrive-Windows-x64
+          name: JerzyTapeDrive-Vector-1.1-Windows-x64
           path: |
             artifact/JerzyTapeDrive.vst3
-            JerzyTapeDrive_Windows_x64.zip
+            JerzyTapeDrive_Vector_1.1_Windows_x64.zip
           if-no-files-found: error

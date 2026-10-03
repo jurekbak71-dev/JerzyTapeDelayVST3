@@ -3,7 +3,10 @@
 #include <cmath>
 #include <vector>
 #include <cstdint>
+#include <atomic>
+#include <chrono>
 #include "tapedrive_params.h"
+#include "optical_compressor.h"
 
 namespace JerzyAudio {
 
@@ -18,6 +21,10 @@ public:
             wowBuffer[ch].assign(delaySize,0.0);
             wowWrite[ch]=0;
         }
+        static std::atomic<uint32_t> seedCounter{0x9e3779b9u};
+        randomState=static_cast<uint32_t>(std::chrono::steady_clock::now().time_since_epoch().count()) ^ seedCounter.fetch_add(0x9e3779b9u);
+        if(!randomState)randomState=0x4a65727au;
+        opto.prepare(sampleRate);
         reset();
     }
 
@@ -33,16 +40,21 @@ public:
             std::fill(wowBuffer[i].begin(),wowBuffer[i].end(),0.0);
             wowWrite[i]=0;
         }
-        randomState=0x4a65727au;
-        wowMotion={}; flutterMotion={};
+        lastDelaySamples=0.0;
+        wowMotion={}; flutterMotion={}; driftMotion={}; crinkleMotion={};
+        crinkleEvent={};
+        smoothTransport=0.0;
         smoothWow=smoothFlutter=smoothAge=0.0;
-        optoFast=optoSlow=optoReduction=0.0;
-        smoothOpto=0.0; smoothMakeup=1.0; smoothOptoMix=0.0;
+        opto.reset();
         for(int ch=0;ch<2;++ch){
             hissLP[ch]=crackle[ch]=dropout[ch]=dropoutTarget[ch]=0.0;
+            noiseBreath[ch]=0.0;
             dropoutLeft[ch]=0;
         }
     }
+
+    // Test/offline reproducibility only. Normal playback gets a fresh seed on prepare.
+    void setRandomSeed(uint32_t seed){randomState=seed?seed:0x4a65727au;}
 
     void process(const Sample* const* in, Sample* const* out, int channels, int n,
                  const TapeDriveParams& p,
@@ -56,8 +68,6 @@ public:
         const double wowTarget=std::clamp(p.wowFlutter,0.0,1.0);
         const double flutterTarget=std::clamp(p.flutter,0.0,1.0);
         const double ageTarget=std::clamp(p.tapeAge,0.0,1.0);
-        const double optoTarget=std::clamp(p.optoAmount,0.0,1.0);
-        const double makeupTarget=p.optoBypass>=0.5?1.0:std::pow(10.0,(-12.0+24.0*std::clamp(p.optoMakeup,0.0,1.0))/20.0);
         channels=std::clamp(channels,1,numChannels);
         sat=std::clamp(sat,0.0,1.0);
         levelNorm=std::clamp(levelNorm,0.0,1.0);
@@ -82,13 +92,12 @@ public:
         Biquad lp = makeLowPass(mapLog(p.lpfCutoff,1000.0,20000.0),mapQ(p.lpfRes));
 
         const double smoothA=std::exp(-1.0/(0.025*sampleRate));
-        const double optoAttack=std::exp(-1.0/(0.012*sampleRate));
-        const double optoRelease=std::exp(-1.0/(0.090*sampleRate));
-        const double optoMemory=std::exp(-1.0/(1.3*sampleRate));
-        const double hissA=std::exp(-2.0*3.141592653589793*1800.0/sampleRate);
-        const double crackA=std::exp(-1.0/(0.0015*sampleRate));
-        const double dropAttack=std::exp(-1.0/(0.004*sampleRate));
-        const double dropRelease=std::exp(-1.0/(0.030*sampleRate));
+        const double hissA=std::exp(-2.0*3.141592653589793*1600.0/sampleRate);
+        const double crackA=std::exp(-1.0/(0.0007*sampleRate));
+        const double dropAttack=std::exp(-1.0/(0.0018*sampleRate));
+        const double dropRelease=std::exp(-1.0/(0.025*sampleRate));
+        const double breathA=std::exp(-1.0/(0.060*sampleRate));
+        const double transportTarget=std::max({wowTarget,flutterTarget,ageTarget})>1e-8?1.0:0.0;
 
         const double tubeDrive=std::pow(10.0,(4.0+30.0*preampDriveNorm)/20.0);
         const double transistorDrive=std::pow(10.0,(2.0+34.0*preampDriveNorm)/20.0);
@@ -96,46 +105,42 @@ public:
         const double tubeToneA=std::exp(-2.0*3.141592653589793*(11500.0-3500.0*preampDriveNorm)/sampleRate);
         const double transistorToneA=std::exp(-2.0*3.141592653589793*4200.0/sampleRate);
 
+        opto.setParameters(p);
         for(int i=0;i<n;++i){
             smoothWow=smoothA*smoothWow+(1.0-smoothA)*wowTarget;
             smoothFlutter=smoothA*smoothFlutter+(1.0-smoothA)*flutterTarget;
             smoothAge=smoothA*smoothAge+(1.0-smoothA)*ageTarget;
-            smoothOpto=smoothA*smoothOpto+(1.0-smoothA)*optoTarget;
-            smoothMakeup=smoothA*smoothMakeup+(1.0-smoothA)*makeupTarget;
-            smoothOptoMix=smoothA*smoothOptoMix+(1.0-smoothA)*(p.optoBypass>=0.5?0.0:1.0);
-            // Random-duration cubic trajectories: no repeating LFO waveform.
-            const double wow=nextMotion(wowMotion,0.25,1.65);
-            const double flutter=nextMotion(flutterMotion,0.012,0.060);
-            const double movement=std::max(smoothWow,smoothFlutter);
-            const double baseDelayMs=4.0*std::min(1.0,movement*1000.0);
-            const double delaySamples=(baseDelayMs+2.7*smoothWow*wow+0.22*smoothFlutter*flutter)*0.001*sampleRate;
-            const double wearCutoff=18000.0-12500.0*smoothAge;
-            const double wearA=std::exp(-2.0*3.141592653589793*wearCutoff/sampleRate);
-            // Stereo-linked optical cell with a slow memory and a two-stage recovery.
-            double detector=0.0;
+            smoothTransport=smoothA*smoothTransport+(1.0-smoothA)*transportTarget;
+            // Several time scales, independently drawn durations and amplitudes.
+            // Age also agitates the transport: physical damage changes pitch and head contact.
+            const double wow=nextMotion(wowMotion,0.10,0.85);
+            const double drift=nextMotion(driftMotion,0.8,3.8);
+            const double flutter=nextMotion(flutterMotion,0.005,0.028);
+            const double crinkle=nextMotion(crinkleMotion,0.002,0.009);
+            const double damage=nextCrinkle(smoothAge);
+            const double wowDepth=smoothWow*(0.20+0.80*smoothWow);
+            const double flutterDepth=smoothFlutter*(0.20+0.80*smoothFlutter);
+            const double age2=smoothAge*smoothAge;
+            const double delayMs=16.0*smoothTransport
+                +8.5*wowDepth*wow+1.5*wowDepth*drift
+                +0.85*flutterDepth*flutter
+                +1.1*age2*drift+damage*(2.6*crinkleEvent.sign+0.35*crinkle);
+            const double desiredDelay=std::clamp(delayMs,0.0,36.0)*0.001*sampleRate;
+            // Bound read-head velocity: extreme simultaneous controls cannot reverse playback.
+            lastDelaySamples+=std::clamp(desiredDelay-lastDelaySamples,-0.65,0.65);
+            const double delaySamples=lastDelaySamples;
+            double opticalInput[2]{},opticalOutput[2]{};
             for(int ch=0;ch<channels;++ch)
-                if(in && in[ch]) detector=std::max(detector,std::abs(static_cast<double>(in[ch][i])));
-            const double optoCoeff=detector>optoFast?optoAttack:optoRelease;
-            optoFast=optoCoeff*optoFast+(1.0-optoCoeff)*detector;
-            optoSlow=optoMemory*optoSlow+(1.0-optoMemory)*optoFast;
-            const double detectorDb=20.0*std::log10(std::max(1e-9,0.72*optoFast+0.28*optoSlow));
-            const double over=detectorDb-(-10.0-20.0*smoothOpto);
-            const double knee=6.0;
-            const double kneeOver=over<=-knee*0.5?0.0:
-                (over>=knee*0.5?over:(over+knee*0.5)*(over+knee*0.5)/(2.0*knee));
-            const double desiredReduction=kneeOver*(2.0/3.0)*std::min(1.0,smoothOpto*20.0);
-            const double recovery=0.10+0.95*std::clamp(optoSlow*3.0,0.0,1.0);
-            const double gainA=std::exp(-1.0/((desiredReduction>optoReduction?0.008:recovery)*sampleRate));
-            optoReduction=gainA*optoReduction+(1.0-gainA)*desiredReduction;
-            const double optoGain=1.0+smoothOptoMix*(std::pow(10.0,-optoReduction/20.0)*smoothMakeup-1.0);
-            reductionPeak=std::max(reductionPeak,std::clamp(optoReduction*smoothOptoMix/24.0,0.0,1.0));
+                opticalInput[ch]=in && in[ch]?static_cast<double>(in[ch][i]):0.0;
+            const double gr=opto.process(opticalInput,opticalOutput,channels);
+            reductionPeak=std::max(reductionPeak,gr/36.0);
 
             for(int ch=0;ch<channels;++ch){
                 const double x = in && in[ch] ? static_cast<double>(in[ch][i]) : 0.0;
                 inputPeak=std::max(inputPeak,std::abs(x));
 
                 // PREAMP STAGE: OFF / TUBE / TRANSISTOR
-                double pre=x*optoGain;
+                double pre=opticalOutput[ch];
                 double preSat=0.0;
                 if(preampMode==1){
                     // tube: soft asymmetry, even harmonics, sag and gentle HF rolloff
@@ -188,27 +193,36 @@ public:
 
                 // Always write transport history, including at zero modulation.
                 wet=readDelay(ch,wet,std::max(0.0,delaySamples));
-                wearLP[ch]=(1.0-wearA)*wet+wearA*wearLP[ch];
-                wet=wet*(1.0-0.70*smoothAge)+wearLP[ch]*(0.70*smoothAge);
                 if(dropoutLeft[ch]>0){
                     --dropoutLeft[ch];
                 }else{
                     dropoutTarget[ch]=0.0;
-                    if(smoothAge>0.0001 && uniform()<smoothAge*smoothAge*0.7/sampleRate){
-                        dropoutTarget[ch]=(0.15+0.75*uniform())*smoothAge;
-                        dropoutLeft[ch]=static_cast<int>((0.012+0.13*uniform())*sampleRate);
+                    // Damage occurs in bursts. At full Age there are several events per second.
+                    const double rate=age2*(0.4+5.5*smoothAge+9.0*damage);
+                    if(smoothAge>0.0001 && uniform()<rate/sampleRate){
+                        dropoutTarget[ch]=(0.25+0.73*uniform())*smoothAge;
+                        dropoutLeft[ch]=static_cast<int>((0.006+0.23*uniform()*uniform())*sampleRate);
                     }
                 }
                 const double dropA=dropoutTarget[ch]>dropout[ch]?dropAttack:dropRelease;
                 dropout[ch]=dropA*dropout[ch]+(1.0-dropA)*dropoutTarget[ch];
-                wet*=1.0-dropout[ch];
+                // Variable spacing loss/azimuth approximation, rather than a fixed dark EQ.
+                const double contactLoss=std::clamp(0.20*age2+0.65*dropout[ch]+0.30*damage,0.0,1.0);
+                const double wearCutoff=18000.0*std::pow(850.0/18000.0,contactLoss);
+                const double wearA=std::exp(-2.0*3.141592653589793*wearCutoff/sampleRate);
+                wearLP[ch]=(1.0-wearA)*wet+wearA*wearLP[ch];
+                const double darkMix=std::min(1.0,0.65*smoothAge+0.6*damage+dropout[ch]);
+                wet=wet*(1.0-darkMix)+wearLP[ch]*darkMix;
+                wet*=std::max(0.015,1.0-dropout[ch]-0.12*damage);
                 const double noise=2.0*uniform()-1.0;
                 hissLP[ch]=hissA*hissLP[ch]+(1.0-hissA)*noise;
-                const double hiss=smoothAge*smoothAge*0.006*(noise-0.65*hissLP[ch]);
+                noiseBreath[ch]=breathA*noiseBreath[ch]+(1.0-breathA)*std::min(1.0,std::abs(wet)*4.0);
+                const double hiss=age2*0.017*(1.0+1.5*damage+0.6*noiseBreath[ch])*(noise-0.75*hissLP[ch]);
                 crackle[ch]*=crackA;
-                if(smoothAge>0.0001 && uniform()<(0.2+4.0*smoothAge)*smoothAge/sampleRate)
-                    crackle[ch]+=(2.0*uniform()-1.0)*0.045*smoothAge;
-                wet+=hiss+crackle[ch]*smoothAge;
+                const double crackRate=age2*(1.0+15.0*smoothAge+85.0*damage);
+                if(smoothAge>0.0001 && uniform()<crackRate/sampleRate)
+                    crackle[ch]+=(2.0*uniform()-1.0)*(0.035+0.14*damage)*smoothAge;
+                wet+=hiss+crackle[ch];
                 wet*=outGain;
                 // The existing additive DRY control stays unprocessed.
                 double y=wet+x*dryGain;
@@ -282,18 +296,32 @@ private:
         return y;
     }
 
+    struct DamageEvent {int left=0,length=1;double depth=0.0,sign=1.0;};
+    double nextCrinkle(double age){
+        if(crinkleEvent.left==0){
+            if(age<0.0001 || uniform()>age*age*(0.25+7.0*age)/sampleRate)return 0.0;
+            crinkleEvent.length=std::max(1,static_cast<int>((0.025+0.22*uniform())*sampleRate));
+            crinkleEvent.left=crinkleEvent.length;
+            crinkleEvent.depth=age*(0.35+0.65*uniform());
+            crinkleEvent.sign=uniform()<0.5?-1.0:1.0;
+        }
+        const double t=1.0-static_cast<double>(crinkleEvent.left--)/crinkleEvent.length;
+        const double ramp=t<0.3?t/0.3:(1.0-t)/0.7;
+        const double u=std::clamp(ramp,0.0,1.0);
+        return crinkleEvent.depth*u*u*(3.0-2.0*u);
+    }
     double readDelay(int ch,double input,double delaySamples){
         auto& b=wowBuffer[ch];
         if(b.empty()) return input;
         const size_t size=b.size();
         b[wowWrite[ch]]=input;
-        double rp=static_cast<double>(wowWrite[ch])-delaySamples;
-        while(rp<0.0) rp+=static_cast<double>(size);
-        while(rp>=static_cast<double>(size)) rp-=static_cast<double>(size);
-        const size_t i0=static_cast<size_t>(rp);
-        const size_t i1=(i0+1)%size;
-        const double frac=rp-static_cast<double>(i0);
-        const double y=b[i0]*(1.0-frac)+b[i1]*frac;
+        // Causal cubic interpolation: no unwritten next sample at near-zero delay.
+        const size_t delayInt=static_cast<size_t>(delaySamples);
+        const double t=delaySamples-delayInt;
+        const size_t k=(wowWrite[ch]+size-delayInt)%size;
+        const double a=b[k],c=b[(k+size-1)%size],d=b[(k+size-2)%size],e=b[(k+size-3)%size];
+        const double y=a*((1-t)*(2-t)*(3-t)/6.)+c*(t*(2-t)*(3-t)/2.)
+                      -d*(t*(1-t)*(3-t)/2.)+e*(t*(1-t)*(2-t)/6.);
         wowWrite[ch]=(wowWrite[ch]+1)%size;
         return y;
     }
@@ -307,11 +335,13 @@ private:
     std::vector<double> wowBuffer[2];
     size_t wowWrite[2]{};
     uint32_t randomState=0x4a65727au;
-    Motion wowMotion{},flutterMotion{};
+    Motion wowMotion{},flutterMotion{},driftMotion{},crinkleMotion{};
+    DamageEvent crinkleEvent{};
+    double smoothTransport=0.0,lastDelaySamples=0.0;
+    OpticalCompressor opto;
     double smoothWow=0.0,smoothFlutter=0.0,smoothAge=0.0;
-    double smoothOpto=0.0,smoothMakeup=1.0,smoothOptoMix=0.0;
-    double optoFast=0.0,optoSlow=0.0,optoReduction=0.0;
-    double hissLP[2]{},crackle[2]{},dropout[2]{},dropoutTarget[2]{};
+
+    double hissLP[2]{},crackle[2]{},dropout[2]{},dropoutTarget[2]{},noiseBreath[2]{};
     int dropoutLeft[2]{};
 };
 

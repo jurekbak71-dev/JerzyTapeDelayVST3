@@ -1,6 +1,4 @@
-// Windows integration test: opens the actual built VST3 editor in a native HWND.
-// Parameter lookup and real mouse clicks verify the transformed control areas,
-// rather than merely testing size calculations or a mock rendering backend.
+// Real VST3 DLL, visible native Windows editor, controller edits and desktop pixels.
 #include "public.sdk/source/vst/hosting/module.h"
 #include "public.sdk/source/vst/hosting/hostclasses.h"
 #include "pluginterfaces/base/funknownimpl.h"
@@ -11,145 +9,39 @@
 #include "../source/tapedrive_params.h"
 #include <windows.h>
 #include <objbase.h>
-#include <utility>
 #include <cmath>
 #include <iostream>
 #include <stdexcept>
-using namespace Steinberg;
-using namespace Steinberg::Vst;
-using namespace JerzyAudio;
-using RenderProbe=int(__cdecl*)(IPlugView*,const char*);
-RenderProbe renderProbe=nullptr;
-RenderProbe visibleProbe=nullptr;
-using ResetProbe=int(__cdecl*)(IPlugView*);
-ResetProbe resetProbe=nullptr;
-void require(bool value,const char* message){if(!value)throw std::runtime_error(message);}
-class HostFrame final : public U::Implements<U::Directly<IPlugFrame>> {
-public:
-    HWND window=nullptr;
-    bool reject=false;
-    tresult PLUGIN_API resizeView(IPlugView* view,ViewRect* size) override {
-        if(reject)return kResultFalse;
-        MoveWindow(window,0,0,size->getWidth(),size->getHeight(),FALSE);
-        return view->onSize(size);
-    }
-};
-void pump(){MSG msg;while(PeekMessageW(&msg,nullptr,0,0,PM_REMOVE)){TranslateMessage(&msg);DispatchMessageW(&msg);}}
-void settle(){const auto end=GetTickCount64()+400;do{pump();MsgWaitForMultipleObjects(0,nullptr,FALSE,10,QS_ALLINPUT);}while(GetTickCount64()<end);}
-HWND editorWindow(HWND parent){
-    HWND largest=nullptr;long area=0;
-    for(HWND child=GetWindow(parent,GW_CHILD);child;child=GetWindow(child,GW_HWNDNEXT)){
-        RECT r{};GetClientRect(child,&r);const long a=(r.right-r.left)*(r.bottom-r.top);
-        if(a>area){largest=child;area=a;}
-    }
-    require(largest!=nullptr,"Native editor child window not created");return largest;
+using namespace Steinberg;using namespace Steinberg::Vst;using namespace JerzyAudio;
+using Probe=int(__cdecl*)(IPlugView*,const char*);Probe visibleProbe,renderProbe;
+void require(bool b,const char*s){if(!b)throw std::runtime_error(s);}
+class HostFrame final:public U::Implements<U::Directly<IPlugFrame>>{public:HWND window=nullptr;bool reject=false;tresult PLUGIN_API resizeView(IPlugView*v,ViewRect*r)override{if(reject)return kResultFalse;MoveWindow(window,0,0,r->getWidth(),r->getHeight(),FALSE);return v->onSize(r);}};
+class Edits final:public U::Implements<U::Directly<IComponentHandler>>{public:int begins=0,ends=0,changes=0;tresult PLUGIN_API beginEdit(ParamID)override{++begins;return kResultOk;}tresult PLUGIN_API endEdit(ParamID)override{++ends;return kResultOk;}tresult PLUGIN_API performEdit(ParamID,ParamValue)override{++changes;return kResultOk;}tresult PLUGIN_API restartComponent(int32)override{return kResultOk;}};
+void pump(){MSG m;while(PeekMessageW(&m,nullptr,0,0,PM_REMOVE)){TranslateMessage(&m);DispatchMessageW(&m);}}
+void settle(){auto end=GetTickCount64()+180;do{pump();MsgWaitForMultipleObjects(0,nullptr,FALSE,10,QS_ALLINPUT);}while(GetTickCount64()<end);}
+ViewRect sizeOf(IPlugView*v){ViewRect r;require(v->getSize(&r)==kResultTrue,"getSize failed");return r;}
+HWND child(HWND p){HWND c=GetWindow(p,GW_CHILD);require(c!=nullptr,"Missing native editor");return c;}
+POINT point(IPlugView*v,double x,double y){auto r=sizeOf(v);return {LONG(std::lround(x*r.getWidth()/880.)),LONG(std::lround(y*r.getHeight()/560.))};}
+void click(IPlugView*v,HWND p,double x,double y){auto q=point(v,x,y);SendMessageW(child(p),WM_LBUTTONDOWN,MK_LBUTTON,MAKELPARAM(q.x,q.y));SendMessageW(child(p),WM_LBUTTONUP,0,MAKELPARAM(q.x,q.y));pump();}
+void check(IPlugView*v,IEditController*c,HWND p){auto r=sizeOf(v);RECT native{};GetClientRect(child(p),&native);require(native.right==r.getWidth()&&native.bottom==r.getHeight(),"Child and host sizes disagree");FUnknownPtr<IParameterFinder> finder(v);require(finder!=nullptr,"Missing parameter finder");
+ struct Hit{double x,y;ParamID id;};
+ for(auto h:{Hit{66,155,kOptoAmountId},Hit{152,155,kOptoColorId},Hit{238,155,kOptoMakeupId},Hit{66,238,kOptoRecoveryId},Hit{152,238,kOptoMixId},Hit{374,177,kSatId},Hit{502,177,kPreampDriveId},Hit{238,222,kOptoBypassId},Hit{387,258,kPreampModeId},Hit{515,258,kGainModeId},Hit{662,177,kLevelId},Hit{790,177,kDryId},Hit{726,258,kDriveBypassId},Hit{88,390,kWowId},Hit{222,390,kFlutterId},Hit{356,390,kTapeAgeId},Hit{502,386,kHPFCutoffId},Hit{604,386,kHPFResId},Hit{706,386,kLPFCutoffId},Hit{808,386,kLPFResId},Hit{650,457,kShiftId}}){auto q=point(v,h.x,h.y);ParamID id=0;require(finder->findParameter(q.x,q.y,id)==kResultTrue&&id==h.id,"Scaled control cannot be found");}
+ auto before=c->getParamNormalized(kDriveBypassId);click(v,p,726,258);require(c->getParamNormalized(kDriveBypassId)!=before,"Bypass did not change");click(v,p,726,258);require(c->getParamNormalized(kDriveBypassId)==before,"Bypass did not restore");
 }
-ViewRect sizeOf(IPlugView* view){ViewRect r;require(view->getSize(&r)==kResultTrue,"getSize failed");return r;}
-void click(IPlugView* view,HWND parent,double x,double y){
-    const auto r=sizeOf(view);
-    const int px=static_cast<int>(std::lround(x*r.getWidth()/1200.0));
-    const int py=static_cast<int>(std::lround(y*r.getHeight()/672.0));
-    HWND child=editorWindow(parent);
-    SendMessageW(child,WM_MOUSEMOVE,0,MAKELPARAM(px,py));
-    SendMessageW(child,WM_LBUTTONDOWN,MK_LBUTTON,MAKELPARAM(px,py));
-    SendMessageW(child,WM_LBUTTONUP,0,MAKELPARAM(px,py));pump();
-}
-void checkPanel(IPlugView* view,IEditController* controller,HWND parent){
-    const auto r=sizeOf(view);RECT child{};GetClientRect(editorWindow(parent),&child);
-    require(std::abs(child.right-r.getWidth())<=1&&std::abs(child.bottom-r.getHeight())<=1,"Native child size differs from accepted host viewport");
-    FUnknownPtr<IParameterFinder> finder(view);
-    require(finder!=nullptr,"Editor has no parameter finder");
-    struct Point{double x,y;ParamID id;};
-    for(const auto& p:{Point{141,319,kSatId},Point{591,475,kTapeAgeId},Point{985,614,kDriveBypassId},Point{941,483,kOptoMakeupId}}){
-        ParamID id=0;
-        require(finder->findParameter(static_cast<int32>(std::lround(p.x*r.getWidth()/1200.0)),
-                                     static_cast<int32>(std::lround(p.y*r.getHeight()/672.0)),id)==kResultTrue&&id==p.id,
-                "GUI occupies only part of the window: a scaled control cannot be found");
-    }
-    if(r.getWidth()==1980){
-        require(renderProbe(view,"tapedrive-render-1980x1108.png")==1,"Rendered panel leaves blank pixels at the window edges");
-    }
-    const double before=controller->getParamNormalized(kDriveBypassId);
-    click(view,parent,985,614);
-    require(controller->getParamNormalized(kDriveBypassId)!=(before),"Mouse click at scaled bypass position did not change the parameter");
-    click(view,parent,985,614);
-    require(controller->getParamNormalized(kDriveBypassId)==before,"Bypass click did not toggle back");
-}
-int main(int argc,char** argv){try{
-    require(argc==2,"Pass the built Tape Drive VST3 path");
-    SetProcessDPIAware();CoInitializeEx(nullptr,COINIT_APARTMENTTHREADED);
-    std::string error;auto module=VST3::Hosting::Module::create(argv[1],error);
-    if(!module)throw std::runtime_error(error);
-    const auto nativeModule=GetModuleHandleA(argv[1]);
-    renderProbe=reinterpret_cast<RenderProbe>(GetProcAddress(nativeModule,"JerzyRenderEditorForTest"));
-    require(renderProbe!=nullptr,"Render probe missing from test build");
-    visibleProbe=reinterpret_cast<RenderProbe>(GetProcAddress(nativeModule,"JerzyCaptureVisibleEditorForTest"));
-    resetProbe=reinterpret_cast<ResetProbe>(GetProcAddress(nativeModule,"JerzyResetTransformForTest"));
-    require(visibleProbe && resetProbe,"Visible window probes missing");
-    HostApplication host;module->getFactory().setHostContext(&host);
-    IPtr<IEditController> controller;
-    for(const auto& info:module->getFactory().classInfos())
-        if(info.category()==kVstComponentControllerClass)controller=module->getFactory().createInstance<IEditController>(info.ID());
-    require(controller!=nullptr,"Tape Drive controller not found");
-    require(controller->initialize(&host)==kResultOk,"Controller initialization failed");
-    auto view=owned(controller->createView(ViewType::kEditor));require(view!=nullptr,"createView failed");
-    HostFrame frame;
-    frame.window=CreateWindowExW(0,L"STATIC",L"Tape Drive native GUI regression",WS_POPUP,0,0,1200,672,nullptr,nullptr,GetModuleHandleW(nullptr),nullptr);
-    require(frame.window!=nullptr,"Cannot create test host HWND");
-    FUnknownPtr<IPlugViewContentScaleSupport> scale(view);
-    require(scale!=nullptr,"Editor has no DPI support");
-    // Hosts can send DPI and restored sizes before a native frame exists.
-    require(scale->setContentScaleFactor(1.25f)==kResultTrue,"Pre-attach DPI failed");
-    auto initial=sizeOf(view);require(initial.getWidth()==1500&&initial.getHeight()==840,"Pre-attach DPI must affect advertised editor size");
-    MoveWindow(frame.window,0,0,initial.getWidth(),initial.getHeight(),FALSE);
-    view->setFrame(&frame);
-    require(view->attached(frame.window,kPlatformTypeHWND)==kResultTrue,"Cannot attach real VST3 GUI");pump();
-    checkPanel(view,controller,frame.window);
-    for(float dpi:{1.0f,1.25f,1.5f,2.0f}){
-        require(scale->setContentScaleFactor(dpi)==kResultTrue,"Runtime DPI change failed");
-        for(const auto& b:{std::pair<double,double>{1067,602},{1127,602},{1067,632},{1127,632}}){
-            const double zoom=b.second==602?(b.first==1067?.75:1.0):(b.first==1067?1.25:1.5);
-            click(view,frame.window,b.first,b.second);
-            const auto r=sizeOf(view);
-            require(r.getWidth()==static_cast<int>(std::lround(1200*zoom*dpi))&&r.getHeight()==static_cast<int>(std::lround(672*zoom*dpi)),"Zoom button did not resize the actual viewport correctly");
-            checkPanel(view,controller,frame.window);
-        }
-        // Reproduce a host which bypasses checkSizeConstraint or restores an
-        // oversized / slightly different-aspect window (as in the FL screenshot).
-        ViewRect restored(0,0,1980,1108);
-        require(frame.resizeView(view,&restored)==kResultTrue,"Direct host resize was rejected");
-        checkPanel(view,controller,frame.window);
-        // Reproduce Windows wrappers which resize native windows without the
-        // VST3 onSize callback. The original integration test missed this path.
-        MoveWindow(frame.window,0,0,1200,672,FALSE);pump();
-        MoveWindow(frame.window,0,0,1980,1108,FALSE);pump();
-        auto nativeSize=sizeOf(view);
-        require(nativeSize.getWidth()==1980&&nativeSize.getHeight()==1108,"Parent HWND resize without onSize left the panel at its old size");
-        checkPanel(view,controller,frame.window);
-        MoveWindow(editorWindow(frame.window),0,0,1500,840,FALSE);pump();
-        nativeSize=sizeOf(view);
-        require(nativeSize.getWidth()==1500&&nativeSize.getHeight()==840,"Child HWND resize without onSize left the panel at its old size");
-        checkPanel(view,controller,frame.window);
-        frame.reject=true;const auto old=sizeOf(view);
-        click(view,frame.window,1127,602);
-        auto unchanged=sizeOf(view);require(old.getWidth()==unchanged.getWidth()&&old.getHeight()==unchanged.getHeight(),"Rejected resize changed the accepted viewport");
-        checkPanel(view,controller,frame.window);frame.reject=false;
-        std::cout<<"Real HWND GUI: DPI "<<dpi<<", all zoom buttons, parameter hit areas, bypass mouse clicks, VST3 and native HWND resize, and rejection OK\n";
-    }
-    // Actual WM_PAINT and desktop pixels, with the whole client area visible.
-    for(const auto dimensions:{std::pair<int,int>{900,504},{1000,560}}){
-        ViewRect visible(0,0,dimensions.first,dimensions.second);
-        frame.resizeView(view,&visible);
-        SetWindowPos(frame.window,HWND_TOPMOST,0,0,dimensions.first,dimensions.second,SWP_SHOWWINDOW);
-        ShowWindow(frame.window,SW_SHOW);settle();
-        const std::string path="tapedrive-window-"+std::to_string(dimensions.first)+".bmp";
-        require(visibleProbe(view,path.c_str())==1,"Visible HWND pixels differ from the scaled panel");
-        // Size alone is insufficient: simulate a late VSTGUI transform reset.
-        require(resetProbe(view)==1,"Cannot simulate a stale transform");settle();
-        checkPanel(view,controller,frame.window);
-        require(visibleProbe(view,path.c_str())==1,"Late transform reset left the visible panel unscaled");
-    }
-    view->removed();view->setFrame(nullptr);scale=nullptr;view=nullptr;
-    DestroyWindow(frame.window);controller->terminate();controller=nullptr;module.reset();CoUninitialize();
-    std::cout<<"Native Tape Drive GUI integration OK\n";
-}catch(const std::exception& e){std::cerr<<e.what()<<'\n';return 1;}}
+int main(int argc,char**argv){try{require(argc==2,"Pass VST3 module path");SetProcessDPIAware();CoInitializeEx(nullptr,COINIT_APARTMENTTHREADED);std::string error;auto module=VST3::Hosting::Module::create(argv[1],error);if(!module)throw std::runtime_error(error);auto native=GetModuleHandleA(argv[1]);visibleProbe=reinterpret_cast<Probe>(GetProcAddress(native,"JerzyCaptureVisibleEditorForTest"));renderProbe=reinterpret_cast<Probe>(GetProcAddress(native,"JerzyRenderEditorForTest"));require(visibleProbe&&renderProbe,"Render probes missing");HostApplication host;module->getFactory().setHostContext(&host);IPtr<IEditController> c;for(const auto&i:module->getFactory().classInfos())if(i.category()==kVstComponentControllerClass)c=module->getFactory().createInstance<IEditController>(i.ID());require(c&&c->initialize(&host)==kResultOk,"Controller init failed");Edits edits;c->setComponentHandler(&edits);auto v=owned(c->createView(ViewType::kEditor));require(v!=nullptr,"Editor creation failed");auto initial=sizeOf(v);require(initial.getWidth()==880&&initial.getHeight()==560,"Default viewport is not compact");HostFrame f;f.window=CreateWindowExW(0,L"STATIC",L"Tape Drive Vector 1.1",WS_POPUP,0,0,880,560,nullptr,nullptr,GetModuleHandleW(nullptr),nullptr);v->setFrame(&f);FUnknownPtr<IPlugViewContentScaleSupport> dpi(v);require(dpi!=nullptr,"DPI interface missing");dpi->setContentScaleFactor(2.f);initial=sizeOf(v);require(initial.getWidth()==880&&initial.getHeight()==560,"DPI multiplied default size");
+ // Oversized size from an old FL session must be clamped when opening.
+ ViewRect old(0,0,2500,1600);v->onSize(&old);MoveWindow(f.window,0,0,2500,1600,FALSE);require(v->attached(f.window,kPlatformTypeHWND)==kResultTrue,"Cannot open GUI");settle();initial=sizeOf(v);require(initial.getWidth()<GetSystemMetrics(SM_CXSCREEN)&&initial.getHeight()<GetSystemMetrics(SM_CYSCREEN),"Restored GUI exceeds screen");check(v,c,f.window);
+ for(float scale:{1.f,1.25f,1.5f,2.f}){auto prev=sizeOf(v);dpi->setContentScaleFactor(scale);auto after=sizeOf(v);require(prev.getWidth()==after.getWidth()&&prev.getHeight()==after.getHeight(),"DPI changed physical viewport unexpectedly");
+ for(double x:{576.,654.,732.,810.}){click(v,f.window,x,34);settle();check(v,c,f.window);auto r=sizeOf(v);require(r.getHeight()<GetSystemMetrics(SM_CYSCREEN),"Zoom exceeds screen height");}
+ // Resize directly without VST3 callback; timer must relayout actual controls.
+ MoveWindow(f.window,0,0,704,448,FALSE);settle();auto r=sizeOf(v);require(r.getWidth()==704&&r.getHeight()==448,"Native resize was ignored");check(v,c,f.window);
+ f.reject=true;auto accepted=sizeOf(v);click(v,f.window,810,34);require(sizeOf(v).getWidth()==accepted.getWidth(),"Rejected resize altered panel");f.reject=false;
+ }
+ // Genuine drag sends beginEdit/performEdit/endEdit and changes the DSP parameter.
+ auto q=point(v,374,177);double before=c->getParamNormalized(kSatId);SendMessageW(child(f.window),WM_LBUTTONDOWN,MK_LBUTTON,MAKELPARAM(q.x,q.y));SendMessageW(child(f.window),WM_MOUSEMOVE,MK_LBUTTON,MAKELPARAM(q.x,q.y-25));SendMessageW(child(f.window),WM_LBUTTONUP,0,MAKELPARAM(q.x,q.y-25));require(c->getParamNormalized(kSatId)>before,"Knob drag did not edit parameter");require(edits.changes>0&&edits.begins==edits.ends,"Automation gesture imbalance");
+ // Grip must request host resize, using the same path as top-row zoom buttons.
+ auto a=point(v,866,546),b=point(v,810,500);int widthBefore=sizeOf(v).getWidth();SendMessageW(child(f.window),WM_LBUTTONDOWN,MK_LBUTTON,MAKELPARAM(a.x,a.y));SendMessageW(child(f.window),WM_MOUSEMOVE,MK_LBUTTON,MAKELPARAM(b.x,b.y));SendMessageW(child(f.window),WM_LBUTTONUP,0,MAKELPARAM(b.x,b.y));require(sizeOf(v).getWidth()!=widthBefore,"Resize grip did not work");check(v,c,f.window);
+ // Screenshot actual visible pixels at minimum and default sizes.
+ for(auto dimensions:{std::pair<int,int>{616,392},{880,560}}){ViewRect r(0,0,dimensions.first,dimensions.second);f.resizeView(v,&r);SetWindowPos(f.window,HWND_TOPMOST,0,0,r.getWidth(),r.getHeight(),SWP_SHOWWINDOW);ShowWindow(f.window,SW_SHOW);settle();check(v,c,f.window);std::string path="tapedrive-window-"+std::to_string(r.getWidth())+".bmp";require(visibleProbe(v,path.c_str())==1,"Visible vector panel differs from expected rendering");require(renderProbe(v,"tapedrive-render-vector.png")==1,"Unpainted panel edges");}
+ v->removed();v->setFrame(nullptr);dpi=nullptr;v=nullptr;DestroyWindow(f.window);c->setComponentHandler(nullptr);c->terminate();c=nullptr;module.reset();CoUninitialize();std::cout<<"Vector GUI: compact startup, restored-size clamp, all controls, drag, automation, grip, zoom, DPI, native resize and visible pixels OK\n";
+}catch(const std::exception&e){std::cerr<<e.what()<<'\n';return 1;}}

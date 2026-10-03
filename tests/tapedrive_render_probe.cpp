@@ -26,8 +26,7 @@ extern "C" __declspec(dllexport) int __cdecl JerzyRenderEditorForTest(Steinberg:
     image.write(reinterpret_cast<const char*>(png.data()),png.size());
     auto pixels=VSTGUI::owned(VSTGUI::CBitmapPixelAccess::create(bitmap));
     if(!pixels)return 0;
-    // Wood near all four edges must be opaque and painted; the former blank
-    // right/bottom strips (or an unscaled bitmap) must fail this test.
+    // All four edges must be painted, not blank.
     for(double y:{.05,.95})for(double x:{.035,.965}){
         int painted=0;
         for(int j=-3;j<=3;++j)for(int i=-3;i<=3;++i){
@@ -43,15 +42,12 @@ extern "C" __declspec(dllexport) int __cdecl JerzyRenderEditorForTest(Steinberg:
 
 // Capture pixels actually presented on the Windows desktop. The offscreen
 // probe above cannot detect a stale/undersized DirectComposition surface.
+#ifndef NOMINMAX
+#define NOMINMAX
+#endif
 #include <windows.h>
 #include <vector>
 #include "vstgui/lib/cgraphicstransform.h"
-extern "C" __declspec(dllexport) int __cdecl JerzyResetTransformForTest(Steinberg::IPlugView* view){
-    auto* editor=dynamic_cast<JerzyAudio::TapeDriveEditor*>(view);
-    if(!editor || !editor->getFrame())return 0;
-    editor->getFrame()->setTransform(VSTGUI::CGraphicsTransform());
-    return 1;
-}
 extern "C" __declspec(dllexport) int __cdecl JerzyCaptureVisibleEditorForTest(Steinberg::IPlugView* view,const char* path){
     auto* editor=dynamic_cast<JerzyAudio::TapeDriveEditor*>(view);
     if(!editor || !editor->getFrame())return 0;

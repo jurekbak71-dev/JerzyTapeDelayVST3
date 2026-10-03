@@ -1,168 +1,71 @@
 #include "tapedrive_gui_views.h"
-#include "tapedrive_params.h"
-#include "vstgui/uidescription/uiviewfactory.h"
-#include "vstgui/uidescription/uiviewcreator.h"
-#include "vstgui/uidescription/iviewcreator.h"
 #include "vstgui/lib/cdrawcontext.h"
-#include "vstgui/lib/cgraphicspath.h"
-#include "vstgui/lib/cgradient.h"
+#include "vstgui/lib/cgraphicstransform.h"
 #include "vstgui/lib/cfont.h"
+#include "vstgui/lib/events.h"
 #include <algorithm>
 #include <cmath>
-
 using namespace VSTGUI;
 namespace JerzyAudio {
 namespace {
-const CColor amber(230,160,78),cream(236,217,181),black(15,14,12),edge(133,112,80);
-void ellipse(CDrawContext* c,double x,double y,double radius,CColor fill,CColor frame){
-    c->setFillColor(fill); c->setFrameColor(frame); c->setLineWidth(1.0);
-    c->drawEllipse({x-radius,y-radius,x+radius,y+radius},kDrawFilledAndStroked);
+const CColor bg(24,28,33),panel(34,40,47),line(63,72,81),muted(157,171,184),ink(227,234,238),amber(245,181,85),green(109,210,163);
+void box(CDrawContext*c,CRect r,CColor fill,CColor edge){c->setFillColor(fill);c->setFrameColor(edge);c->setLineWidth(1);c->drawRect(r,kDrawFilledAndStroked);}
+void text(CDrawContext*c,const std::string&s,CRect r,double size,CColor color,CHoriTxtAlign align=kCenterText){c->setFont(kNormalFont,size);c->setFontColor(color);c->drawString(s.c_str(),r,align);}
 }
-void gradientRect(CDrawContext* c,const CRect& r,CColor a,CColor b){
-    auto* path=c->createGraphicsPath();
-    if(!path)return;
-    path->addRect(r);
-    auto* gradient=CGradient::create(0,1,a,b);
-    if(gradient){ c->fillLinearGradient(path,*gradient,{r.left,r.top},{r.left,r.bottom}); gradient->forget(); }
-    path->forget();
+VectorControl::VectorControl(const CRect&r,IControlListener*l,int tag,Kind k,std::string s,int count)
+:CControl(r,l,tag),kind(k),design(r),label(std::move(s)),steps(count){setMouseEnabled(k!=Meter);setMin(0);setMax(1);setWheelInc(.01f);setWantsFocus(k!=Meter && k!=Grip);}
+void VectorControl::setText(std::string s){if(display!=s){display=std::move(s);invalid();}}
+void VectorControl::draw(CDrawContext*c){
+ const auto r=getViewSize();const double w=r.getWidth(),h=r.getHeight();
+ CDrawContext::Transform tr(*c,CGraphicsTransform().translate(r.left,r.top).scale(w/100.,h/100.));
+ c->setDrawMode(kAntiAliasing|kNonIntegralMode);
+ auto caption=[&](const std::string&s,CRect area,double font,CColor color,CHoriTxtAlign align=kCenterText){
+  CDrawContext::Transform unscale(*c,CGraphicsTransform().scale(100./w,100./h));
+  text(c,s,{area.left*w/100.,area.top*h/100.,area.right*w/100.,area.bottom*h/100.},font*std::min(w/design.getWidth(),h/design.getHeight()),color,align);
+ };
+ if(kind==Knob){
+  caption(label,{0,0,100,16},11,muted);
+  const double cx=50,cy=48,rad=25;
+  c->setFillColor(CColor(19,23,28));c->setFrameColor(line);c->setLineWidth(1.5);c->drawEllipse({cx-rad,cy-rad,cx+rad,cy+rad},kDrawFilledAndStroked);
+  for(int i=0;i<=24;++i){const double a=(135+270*i/24.)*Constants::pi/180.;c->setFrameColor(i<=int(getValue()*24)?amber:line);c->setLineWidth(1.5);c->drawLine({cx+29*std::cos(a),cy+29*std::sin(a)},{cx+32*std::cos(a),cy+32*std::sin(a)});}
+  const double a=(135+270*getValue())*Constants::pi/180.;c->setFrameColor(ink);c->setLineWidth(2.5);c->drawLine({cx+7*std::cos(a),cy+7*std::sin(a)},{cx+21*std::cos(a),cy+21*std::sin(a)});
+  caption(display,{0,80,100,99},12,ink);
+ }else if(kind==Meter){
+  caption(label,{0,0,48,36},10,muted,kLeftText);caption(display,{48,0,100,36},10,ink,kRightText);
+  box(c,{0,49,100,85},bg,line);
+  for(int i=0;i<30;++i){c->setFillColor(i<getValue()*30?(i>26?CColor(230,101,90):i>22?amber:green):CColor(48,57,64));c->drawRect({2+i*3.2,54,4+i*3.2,80},kDrawFilled);}
+ }else if(kind==Grip){c->setFrameColor(muted);c->setLineWidth(5);for(int i=0;i<3;++i)c->drawLine({35.+i*20,95},{95,35.+i*20});}
+ else {
+  const bool lit=kind==Choice && steps==1 && getValue()>.5f;
+  box(c,{1,1,99,99},lit?CColor(99,61,30):CColor(29,34,40),lit?amber:line);
+  caption(kind==Action?label:label+"  "+display,{4,4,96,96},10,lit?amber:ink);
+ }
+ setDirty(false);
 }
-void text(CDrawContext* c,const char* s,const CRect& r,double size,CColor color){
-    c->setFont(kNormalFont,size); c->setFontColor(color); c->drawString(s,r,kCenterText);
+CMouseEventResult VectorControl::onMouseDown(CPoint&p,const CButtonState&b){
+ if(!b.isLeftButton()||kind==Meter)return kMouseEventNotHandled;
+ if(kind==Action){setValue(1);valueChanged();return kMouseDownEventHandledButDontNeedMovedOrUpEvents;}
+ anchor=p;startValue=getValue();
+ if(kind==Grip)return kMouseEventHandled;
+ beginEdit();
+ if(kind==Choice){const int v=int(std::lround(getValue()*steps));setValue(float((v+1)%(steps+1))/steps);valueChanged();invalid();endEdit();return kMouseDownEventHandledButDontNeedMovedOrUpEvents;}
+ if(b.isDoubleClick() || (b.getModifierState()&kControl)){setValue(getDefaultValue());valueChanged();invalid();endEdit();return kMouseDownEventHandledButDontNeedMovedOrUpEvents;}
+ return kMouseEventHandled;
 }
-void metalKnob(CDrawContext* c,const CRect& r,double value){
-    const double x=r.getCenter().x,y=r.getCenter().y;
-    const double radius=std::min(r.getWidth(),r.getHeight())*0.39;
-    c->setDrawMode(kAntiAliasing|kNonIntegralMode);
-    for(int i=0;i<=10;++i){
-        const double a=(135.0+27.0*i)*Constants::pi/180.0;
-        c->setFrameColor(amber); c->setLineWidth(i==5?2.2:1.5);
-        c->drawLine({x+std::cos(a)*radius*1.11,y+std::sin(a)*radius*1.11},
-                    {x+std::cos(a)*radius*1.27,y+std::sin(a)*radius*1.27});
-    }
-    ellipse(c,x+2,y+4,radius+2,CColor(0,0,0,130),black);
-    ellipse(c,x,y,radius,CColor(43,39,33),edge);
-    // Rubber grip scallops surrounding a spun-metal centre.
-    for(int i=0;i<18;++i){
-        const double a=2.0*Constants::pi*i/18.0;
-        ellipse(c,x+radius*0.82*std::cos(a),y+radius*0.82*std::sin(a),radius*0.18,CColor(23,22,20),CColor(48,44,39));
-    }
-    ellipse(c,x,y,radius*0.76,CColor(103,93,79),CColor(186,171,146));
-    CDrawContext::PointList wedge;
-    const double metalRadius=radius*0.70;
-    for(int i=0;i<120;++i){
-        const double a=2.0*Constants::pi*i/120.0;
-        const double next=a+2.0*Constants::pi/120.0;
-        const auto shade=static_cast<uint8_t>(std::clamp(130.0+55.0*std::cos(2.0*a+0.6)+15.0*std::cos(6.0*a),55.0,215.0));
-        c->setFillColor(CColor(shade,static_cast<uint8_t>(shade*0.96),static_cast<uint8_t>(shade*0.88)));
-        wedge={{x,y},{x+metalRadius*std::cos(a),y+metalRadius*std::sin(a)},
-                       {x+metalRadius*std::cos(next),y+metalRadius*std::sin(next)}};
-        c->drawPolygon(wedge,kDrawFilled);
-    }
-    for(int i=1;i<8;++i){
-        c->setFrameColor(CColor(235,222,200,22)); c->setLineWidth(0.5);
-        const double rr=metalRadius*i/8.0;
-        c->drawEllipse({x-rr,y-rr,x+rr,y+rr},kDrawStroked);
-    }
-    const double a=(135.0+270.0*std::clamp(value,0.0,1.0))*Constants::pi/180.0;
-    c->setFrameColor(cream); c->setLineWidth(std::max(2.0,radius*0.065));
-    c->drawLine({x+radius*0.61*std::cos(a),y+radius*0.61*std::sin(a)},
-                {x+radius*0.98*std::cos(a),y+radius*0.98*std::sin(a)});
+CMouseEventResult VectorControl::onMouseMoved(CPoint&p,const CButtonState&b){
+ if(!b.isLeftButton())return kMouseEventNotHandled;
+ if(kind==Grip){anchor=p;valueChanged();return kMouseEventHandled;}
+ if(kind!=Knob || !isEditing())return kMouseEventNotHandled;
+ const double fine=(b.getModifierState()&kShift)?.1:1.;
+ setValue(float(std::clamp(startValue+(anchor.y-p.y)*fine/std::max(90.,getHeight()),0.,1.)));valueChanged();invalid();return kMouseEventHandled;
 }
-}
-
-ChickenKnob::ChickenKnob(const CRect& r,IControlListener* l,int32_t tag):CKnob(r,l,tag,nullptr,nullptr){
-    setStartAngle(static_cast<float>(Constants::pi*0.75));
-    setRangeAngle(static_cast<float>(Constants::pi*1.5));
-    setWheelInc(0.01f);
-}
-void ChickenKnob::draw(CDrawContext* c){metalKnob(c,getViewSize(),getValueNormalized());setDirty(false);}
-
-AnalogMeter::AnalogMeter(const CRect& r,IControlListener* l,int32_t tag):CKnob(r,l,tag,nullptr,nullptr){
-    setMouseEnabled(false);
-}
-void AnalogMeter::draw(CDrawContext* c){
-    const CRect r(getViewSize());
-    c->setDrawMode(kAntiAliasing|kNonIntegralMode);
-    c->setFillColor(black);c->setFrameColor(edge);c->setLineWidth(2);
-    c->drawRect(r,kDrawFilledAndStroked);
-    CRect face(r);face.inset(6,6);
-    gradientRect(c,face,CColor(157,90,35),CColor(255,225,154));
-    const double cx=face.getCenter().x,cy=face.bottom-7;
-    const double radius=std::min(face.getWidth()*0.48,face.getHeight()*0.86);
-    for(int i=0;i<=10;++i){
-        const double a=(210+12*i)*Constants::pi/180.0;
-        c->setFrameColor(i>=8?CColor(191,47,25):CColor(61,37,18));c->setLineWidth(i%2?1:1.6);
-        c->drawLine({cx+radius*0.77*std::cos(a),cy+radius*0.77*std::sin(a)},
-                    {cx+radius*0.94*std::cos(a),cy+radius*0.94*std::sin(a)});
-    }
-    text(c,"-20     -10      -3      0   +3",{face.left,face.top+6,face.right,face.top+19},9,CColor(60,34,14));
-    text(c,"VU",{face.left,face.bottom-27,face.right,face.bottom-11},13,CColor(60,34,14));
-    const double a=(210+120*std::clamp(static_cast<double>(getValueNormalized()),0.0,1.0))*Constants::pi/180.0;
-    c->setFrameColor(CColor(81,27,15));c->setLineWidth(2);
-    c->drawLine({cx,cy},{cx+radius*0.87*std::cos(a),cy+radius*0.87*std::sin(a)});
-    ellipse(c,cx,cy,3,CColor(63,38,18),CColor(63,38,18));setDirty(false);
-}
-
-ToggleSwitch::ToggleSwitch(const CRect& r,IControlListener* l,int32_t tag):CKnob(r,l,tag,nullptr,nullptr){setMin(0);setMax(1);setWheelInc(1);}
-CMouseEventResult ToggleSwitch::onMouseDown(CPoint&,const CButtonState& buttons){
-    if(!buttons.isLeftButton())return kMouseEventNotHandled;
-    beginEdit();setValueNormalized(getValueNormalized()<0.5f?1.f:0.f);valueChanged();invalid();endEdit();
-    return kMouseDownEventHandledButDontNeedMovedOrUpEvents;
-}
-void ToggleSwitch::draw(CDrawContext* c){
-    const CRect r(getViewSize());const auto p=r.getCenter();
-    c->setDrawMode(kAntiAliasing|kNonIntegralMode);
-    ellipse(c,p.x,p.y,15,CColor(91,80,63),edge);
-    ellipse(c,p.x,p.y,11,black,cream);
-    const double end=p.y+(getValueNormalized()>=0.5f?-11:11);
-    c->setLineWidth(7);c->setFrameColor(CColor(182,167,142));c->drawLine(p,{p.x,end});
-    ellipse(c,p.x,end,6,CColor(221,207,179),edge);setDirty(false);
-}
-ThreeWaySwitch::ThreeWaySwitch(const CRect& r,IControlListener* l,int32_t tag):ToggleSwitch(r,l,tag){setMax(2);}
-CMouseEventResult ThreeWaySwitch::onMouseDown(CPoint&,const CButtonState& buttons){
-    if(!buttons.isLeftButton())return kMouseEventNotHandled;
-    const int current=static_cast<int>(std::lround(getValueNormalized()*2.f));
-    beginEdit();setValueNormalized(static_cast<float>((current+1)%3)*0.5f);valueChanged();invalid();endEdit();
-    return kMouseDownEventHandledButDontNeedMovedOrUpEvents;
-}
-void ThreeWaySwitch::draw(CDrawContext* c){
-    const CRect r(getViewSize());const auto p=r.getCenter();
-    c->setDrawMode(kAntiAliasing|kNonIntegralMode);
-    ellipse(c,p.x,p.y,15,CColor(91,80,63),edge);ellipse(c,p.x,p.y,11,black,cream);
-    const double end=p.y+11*(1.0-2.0*getValueNormalized());
-    c->setLineWidth(7);c->setFrameColor(CColor(182,167,142));c->drawLine(p,{p.x,end});
-    ellipse(c,p.x,end,6,CColor(221,207,179),edge);setDirty(false);
-}
-void BypassButton::draw(CDrawContext* c){
-    CRect r(getViewSize());const double x=r.getCenter().x,y=r.getCenter().y+7;
-    const double radius=std::min(r.getWidth(),r.getHeight())*0.29;
-    c->setDrawMode(kAntiAliasing|kNonIntegralMode);
-    const bool bypass=getValueNormalized()>=0.5f;
-    ellipse(c,x,r.top+9,7,CColor(85,41,15),edge);
-    ellipse(c,x,r.top+9,4,bypass?CColor(255,193,71):CColor(63,42,24),edge);
-    metalKnob(c,{x-radius*1.25,y-radius*1.25,x+radius*1.25,y+radius*1.25},0.5);
-    setDirty(false);
-}
-HardwarePanel::HardwarePanel(const CRect& r,IControlListener* l,int32_t tag):CKnob(r,l,tag,nullptr,nullptr){setMouseEnabled(false);}
-void HardwarePanel::draw(CDrawContext* c){
-    c->setDrawMode(kAntiAliasing|kNonIntegralMode);
-    c->setFrameColor(CColor(169,113,58,130));c->setLineWidth(1);
-    c->drawLine({40,397},{720,397});c->drawLine({735,235},{735,547});
-    c->drawLine({40,551},{1160,551});c->drawLine({760,381},{1160,381});
-    setDirty(false);
-}
-namespace {
-template<class T> class SimpleCreator : public ViewCreatorAdapter {
-public:
-    SimpleCreator(const char* name):name(name){UIViewFactory::registerViewCreator(*this);}
-    IdStringPtr getViewName() const override{return name;}
-    IdStringPtr getBaseViewName() const override{return "CKnob";}
-    CView* create(const UIAttributes&,const IUIDescription*) const override{return new T(CRect(0,0,100,100),nullptr,-1);}
-private:const char* name;
-};
-SimpleCreator<ChickenKnob> knob("ChickenKnob");SimpleCreator<AnalogMeter> meter("AnalogMeter");
-SimpleCreator<ToggleSwitch> toggle("ToggleSwitch");SimpleCreator<ThreeWaySwitch> three("ThreeWaySwitch");
-SimpleCreator<BypassButton> bypass("BypassButton");SimpleCreator<HardwarePanel> panel("HardwarePanel");
-}
-void registerTapeDriveViews(){}
+CMouseEventResult VectorControl::onMouseUp(CPoint&,const CButtonState&){if(isEditing())endEdit();return kMouseEventHandled;}
+CMouseEventResult VectorControl::onMouseCancel(){if(isEditing())endEdit();return kMouseEventHandled;}
+void VectorControl::onMouseWheelEvent(MouseWheelEvent&e){if(kind!=Knob && kind!=Choice)return;beginEdit();setValue(getValue()+float(e.deltaY*(steps?1./steps:(e.modifiers.has(ModifierKey::Shift)?.001:.01))));valueChanged();invalid();endEdit();e.consumed=true;}
+VectorPanel::VectorPanel(const CRect&r):CView(r){setMouseEnabled(false);}
+void VectorPanel::draw(CDrawContext*c){const auto r=getViewSize();CDrawContext::Transform tr(*c,CGraphicsTransform().scale(r.getWidth()/880.,r.getHeight()/560.));c->setDrawMode(kAntiAliasing|kNonIntegralMode);box(c,{0,0,880,560},bg,line);
+ text(c,"JERZY TAPE DRIVE",{20,14,340,39},22,ink,kLeftText);text(c,"VECTOR 1.1  /  WORN TAPE · OPTICAL COLOUR",{20,42,450,58},10,muted,kLeftText);
+ struct Section{double x,y,w,h;const char* title;};
+ for(auto s:{Section{16,78,272,206,"OPTICAL INPUT"},Section{304,78,272,206,"TAPE & PREAMP"},Section{592,78,272,206,"OUTPUT"},Section{16,300,414,174,"TAPE TRANSPORT & AGE"},Section{446,300,418,174,"OUTPUT FILTERS"}}){box(c,{s.x,s.y,s.x+s.w,s.y+s.h},panel,line);text(c,s.title,{s.x+12,s.y+9,s.x+s.w-12,s.y+30},11,amber,kLeftText);}
+ text(c,"Drag knob · Shift: fine · Double-click: reset",{28,454,422,469},9,muted,kLeftText);setDirty(false);}
 }

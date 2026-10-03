@@ -73,6 +73,9 @@ void TapeDriveProcessor::readChanges(IParameterChanges* c){
    case kOptoAmountId:p.optoAmount=v;break;
    case kOptoMakeupId:p.optoMakeup=v;break;
    case kOptoBypassId:p.optoBypass=v;break;
+   case kOptoColorId:p.optoColor=v;break;
+   case kOptoRecoveryId:p.optoRecovery=v;break;
+   case kOptoMixId:p.optoMix=v;break;
    default:break;
   }
  }
