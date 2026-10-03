@@ -1,4 +1,4 @@
-name: Build JERZY AUTO TUNE 1.3 (Windows)
+name: Build JERZY AUTO TUNE 1.4 (Windows)
 
 on:
   push:
@@ -30,23 +30,23 @@ jobs:
         run: |
           $plugin = 'build/JerzyAutoTune/JerzyAutoTune_artefacts/Release/VST3/JERZY AUTO TUNE.vst3'
           $moduleInfo = Get-Content "$plugin/Contents/Resources/moduleinfo.json" -Raw
-          if ($moduleInfo -notmatch '"Name":\s*"JERZY AUTO TUNE"' -or $moduleInfo -notmatch '"Version":\s*"1\.3\.0"') {
+          if ($moduleInfo -notmatch '"Name":\s*"JERZY AUTO TUNE"' -or $moduleInfo -notmatch '"Version":\s*"1\.4\.0"') {
             throw 'VST3 module name or version is incorrect.'
           }
           $binary = [Text.Encoding]::Latin1.GetString([IO.File]::ReadAllBytes("$plugin/Contents/x86_64-win/JERZY AUTO TUNE.vst3"))
-          foreach ($requiredText in @('JERZY AUTO TUNE', 'NOTE FILTER', 'NOISE FILTER', 'DE-ESSER', 'SATURATION', 'DOUBLER', 'VOCAL COMPRESSOR + LIMITER', 'VOCAL EQ', 'Gate Threshold', 'De-Esser Frequency', 'Limiter Ceiling')) {
+          foreach ($requiredText in @('JERZY AUTO TUNE', 'NOTE FILTER', 'Gate Threshold', 'Gate Range', 'Gate Attack', 'Gate Hold', 'Gate Release', 'Noise Threshold', 'Noise Reduction', 'Noise Release', 'Noise High Pass', 'De-Esser Threshold', 'De-Esser Frequency', 'De-Esser Range', 'De-Esser Release', 'Saturation Drive', 'Saturation Tone', 'Saturation Mix', 'Saturation Output', 'Doubler Mix', 'Doubler Delay', 'Doubler Detune', 'Doubler Width', 'Comp Threshold', 'Comp Ratio', 'Comp Attack', 'Comp Release', 'Comp Knee', 'Comp Makeup', 'Limiter Ceiling', 'EQ Low Cut', 'EQ Body', 'EQ Mid Frequency', 'EQ Presence', 'EQ Mid Q', 'EQ Air', 'EQ High Cut', 'Output')) {
             if (-not $binary.Contains($requiredText)) { throw "Built VST3 is missing expected UI/parameter string: $requiredText" }
           }
 
       - name: Package VST3
         shell: pwsh
         run: |
-          Compress-Archive -Path 'build/JerzyAutoTune/JerzyAutoTune_artefacts/Release/VST3/JERZY AUTO TUNE.vst3' -DestinationPath 'JERZY-AUTO-TUNE-1.3-Windows-x64-VST3.zip' -Force
+          Compress-Archive -Path 'build/JerzyAutoTune/JerzyAutoTune_artefacts/Release/VST3/JERZY AUTO TUNE.vst3' -DestinationPath 'JERZY-AUTO-TUNE-1.4-Windows-x64-VST3.zip' -Force
 
       - name: Upload VST3 artifact
         uses: actions/upload-artifact@v4
         with:
-          name: JERZY-AUTO-TUNE-1.3-Windows-x64-VST3
-          path: JERZY-AUTO-TUNE-1.3-Windows-x64-VST3.zip
+          name: JERZY-AUTO-TUNE-1.4-Windows-x64-VST3
+          path: JERZY-AUTO-TUNE-1.4-Windows-x64-VST3.zip
           if-no-files-found: error
           retention-days: 14
