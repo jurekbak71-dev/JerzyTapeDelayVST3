@@ -52,9 +52,11 @@ extern "C" __declspec(dllexport) int __cdecl JerzyRenderEditorForTest(Steinberg:
             int bodyPixels=0;
             for(int dy=-2;dy<=2;++dy)for(int dx=-2;dx<=2;++dx){
                 pixels->setPosition(x+dx,y+dy);VSTGUI::CColor c;pixels->getColor(c);
-                if(std::abs(int(c.red)-19)<6 && std::abs(int(c.green)-23)<6 && std::abs(int(c.blue)-28)<6)++bodyPixels;
+                const bool body=std::abs(int(c.red)-19)<6 && std::abs(int(c.green)-23)<6 && std::abs(int(c.blue)-28)<6;
+                const bool needle=c.red>80 && c.green>80 && c.blue>80 && std::abs(int(c.blue)-c.red)<30;
+                if(body || needle)++bodyPixels;
             }
-            // The needle may cross a patch; most pixels must still be the knob body.
+            // The needle may cross a patch; count its light pixels as well as the dark body.
             if(bodyPixels<10){
                 std::cerr<<"Missing/clipped knob at "<<k.x<<','<<k.y<<" quadrant "<<offset.x<<','<<offset.y<<" body="<<bodyPixels<<"/25\n";return 0;
             }
