@@ -73,12 +73,12 @@ JerzyFXBlockAudioProcessorEditor::JerzyFXBlockAudioProcessorEditor(JerzyFXBlockA
     combo(delDivision,{"1/1","1/2","1/4","1/8","1/16","1/32","1/4T","1/8T","1/16T","1/4D","1/8D","1/16D"});
     combo(rotDivision,{"1/1","1/2","1/4","1/8","1/16","1/32","1/4T","1/8T","1/16T","1/4D","1/8D","1/16D"});
 
-    knob(revSize,"SIZE");knob(revDamp,"DAMP");knob(revMix,"MIX");
-    knob(delTime,"TIME","ms");knob(delFb,"FDBK");knob(delMix,"MIX");
-    knob(choRate,"RATE","Hz");knob(choDepth,"DEPTH","ms");knob(choMix,"MIX");
-    knob(width,"WIDTH");knob(widMix,"MIX");
-    knob(rotRate,"RATE","Hz");knob(rotDepth,"DEPTH");knob(rotMix,"MIX");
-    knob(shAmt,"AMOUNT");knob(shMix,"MIX");
+    knob(revSize,"SIZE","",0.50);knob(revDamp,"DAMP","",0.50);knob(revMix,"MIX","",0.0);
+    knob(delTime,"TIME","ms",1.0);knob(delFb,"FDBK","",0.0);knob(delMix,"MIX","",0.0);
+    knob(choRate,"RATE","Hz",0.50);knob(choDepth,"DEPTH","ms",0.0);knob(choMix,"MIX","",0.0);
+    knob(width,"WIDTH","",0.0);knob(widMix,"MIX","",0.0);
+    knob(rotRate,"RATE","Hz",1.0);knob(rotDepth,"DEPTH","",0.0);knob(rotMix,"MIX","",0.0);
+    knob(shAmt,"AMOUNT","",0.0);knob(shMix,"MIX","",0.0);
 
     auto&s=proc.apvts;
     auto SAx=[&](const char*id,FXKnob&k){sa.push_back(std::make_unique<SA>(s,id,k));};
@@ -93,13 +93,24 @@ JerzyFXBlockAudioProcessorEditor::JerzyFXBlockAudioProcessorEditor(JerzyFXBlockA
     BAx("delSync",delSync);BAx("rotSync",rotSync);
     ca.push_back(std::make_unique<CA>(s,"delDivision",delDivision));
     ca.push_back(std::make_unique<CA>(s,"rotDivision",rotDivision));
-}
-JerzyFXBlockAudioProcessorEditor::~JerzyFXBlockAudioProcessorEditor(){setLookAndFeel(nullptr);}
 
-void JerzyFXBlockAudioProcessorEditor::knob(FXKnob&k,const juce::String&n,const juce::String&u)
+    delSync.onClick=[this]{updateSyncControls();};
+    rotSync.onClick=[this]{updateSyncControls();};
+    delDivision.onChange=[this]{repaint();};
+    rotDivision.onChange=[this]{repaint();};
+    updateSyncControls();
+    startTimerHz(15);
+}
+JerzyFXBlockAudioProcessorEditor::~JerzyFXBlockAudioProcessorEditor(){stopTimer();setLookAndFeel(nullptr);}
+
+void JerzyFXBlockAudioProcessorEditor::knob(FXKnob&k,const juce::String&n,const juce::String&u,double neutral)
 {
-    k.setSliderStyle(juce::Slider::RotaryHorizontalVerticalDrag);k.setTextBoxStyle(juce::Slider::TextBoxBelow,true,142,20);
-    k.textFromValueFunction=[n,u](double v){return n+" "+juce::String(v,1)+(u.isEmpty()?"":" "+u);};addAndMakeVisible(k);
+    k.setSliderStyle(juce::Slider::RotaryHorizontalVerticalDrag);
+    k.setTextBoxStyle(juce::Slider::TextBoxBelow,true,150,22);
+    k.textFromValueFunction=[n,u](double v){return juce::String(v,1)+(u.isEmpty()?"":" "+u);};
+    k.setNeutralValue(neutral);
+    k.setTooltip(n);
+    addAndMakeVisible(k);
 }
 void JerzyFXBlockAudioProcessorEditor::tog(juce::ToggleButton&b,const juce::String&t,juce::Colour c){b.setButtonText(t);b.setColour(juce::ToggleButton::tickColourId,c);addAndMakeVisible(b);}
 void JerzyFXBlockAudioProcessorEditor::combo(juce::ComboBox&b,const juce::StringArray&i){b.addItemList(i,1);addAndMakeVisible(b);}
@@ -109,6 +120,28 @@ void JerzyFXBlockAudioProcessorEditor::updateOrderCaption()
 {
     static const char* n[]={"REV","DEL","CHO","WID","ROT","SHM"};
     juce::String s="CHAIN  ";for(int i=0;i<6;++i){if(i)s<<" > ";s<<n[order[(size_t)i]];}sub.setText(s,juce::dontSendNotification);
+}
+void JerzyFXBlockAudioProcessorEditor::updateSyncControls()
+{
+    const bool ds=delSync.getToggleState(), rs=rotSync.getToggleState();
+    delTime.setEnabled(!ds); delDivision.setEnabled(ds);
+    rotRate.setEnabled(!rs); rotDivision.setEnabled(rs);
+    resized(); repaint();
+}
+void JerzyFXBlockAudioProcessorEditor::timerCallback()
+{
+    const bool ds=delSync.getToggleState(), rs=rotSync.getToggleState();
+    if(delDivision.isEnabled()!=ds || delTime.isEnabled()==ds || rotDivision.isEnabled()!=rs || rotRate.isEnabled()==rs)
+        updateSyncControls();
+}
+void JerzyFXBlockAudioProcessorEditor::drawParamLabel(juce::Graphics& g,const juce::String& t,float x,float y,float w) const
+{
+    auto rr=juce::Rectangle<float>(x*getWidth()/1350.f,y*getHeight()/630.f,w*getWidth()/1350.f,18*getHeight()/630.f);
+    g.setColour(lcdBg);g.fillRoundedRectangle(rr,2.5f);
+    g.setColour(lcdText);
+    const float fs=juce::jlimit(7.0f,11.0f,9.5f*getWidth()/1350.f);
+    g.setFont(juce::Font(juce::FontOptions(juce::Font::getDefaultMonospacedFontName(),fs,juce::Font::bold)));
+    g.drawFittedText(t,rr.toNearestInt().reduced(2,0),juce::Justification::centred,1,0.80f);
 }
 
 void JerzyFXBlockAudioProcessorEditor::mouseDown(const juce::MouseEvent&e)
@@ -152,8 +185,19 @@ void JerzyFXBlockAudioProcessorEditor::paint(juce::Graphics&g)
         g.setColour(lcdText);g.setFont(juce::Font(juce::FontOptions(juce::Font::getDefaultMonospacedFontName(),12.0f*getWidth()/1350.f,juce::Font::bold)));
         g.drawText(juce::String(":: ")+names[id]+" ::",hdr.withTrimmedLeft(24),juce::Justification::centredLeft);
     }
-    g.setColour(lcdBg);g.setFont(juce::Font(juce::FontOptions(juce::Font::getDefaultMonospacedFontName(),9.0f*getWidth()/1350.f,juce::Font::bold)));
-    g.drawText("DRAG MODULE HEADER TO CHANGE SIGNAL ORDER",juce::Rectangle<int>(20,(int)(607*getHeight()/630.f),600,(int)(18*getHeight()/630.f)),juce::Justification::centredLeft);
+    auto bx=[&](int id){return slotX(slotForEffect(id));};
+    float x=bx(0);drawParamLabel(g,"SIZE",x+35,302,136);drawParamLabel(g,"DAMPING",x+35,442,136);drawParamLabel(g,"MIX",x+35,582,136);
+    x=bx(1);drawParamLabel(g,"TIME",x+35,315,136);drawParamLabel(g,"FEEDBACK",x+35,445,136);drawParamLabel(g,"MIX",x+35,575,136);
+    x=bx(2);drawParamLabel(g,"RATE",x+35,302,136);drawParamLabel(g,"DEPTH",x+35,442,136);drawParamLabel(g,"MIX",x+35,582,136);
+    x=bx(3);drawParamLabel(g,"WIDTH",x+35,357,136);drawParamLabel(g,"MIX",x+35,532,136);
+    x=bx(4);drawParamLabel(g,"RATE",x+35,315,136);drawParamLabel(g,"DEPTH",x+35,445,136);drawParamLabel(g,"MIX",x+35,575,136);
+    x=bx(5);drawParamLabel(g,"AMOUNT",x+35,357,136);drawParamLabel(g,"MIX",x+35,532,136);
+
+    g.setColour(lcdBg);
+    g.setFont(juce::Font(juce::FontOptions(juce::Font::getDefaultMonospacedFontName(),juce::jlimit(7.0f,10.0f,9.0f*getWidth()/1350.f),juce::Font::bold)));
+    g.drawFittedText("DRAG MODULE HEADER TO CHANGE SIGNAL ORDER",
+                     juce::Rectangle<int>((int)(20*getWidth()/1350.f),(int)(607*getHeight()/630.f),(int)(600*getWidth()/1350.f),(int)(18*getHeight()/630.f)),
+                     juce::Justification::centredLeft,1,0.8f);
 }
 
 void JerzyFXBlockAudioProcessorEditor::resized()
@@ -171,6 +215,7 @@ void JerzyFXBlockAudioProcessorEditor::resized()
     x=base(4);place(rotOn,x+22,126,160,30);place(rotSync,x+18,162,72,28);place(rotDivision,x+96,162,92,28);place(rotRate,x+28,210,150,105);place(rotDepth,x+28,340,150,105);place(rotMix,x+28,470,150,105);
     x=base(5);place(shOn,x+22,126,160,30);place(shAmt,x+28,245,150,112);place(shMix,x+28,420,150,112);
 
-    delTime.setEnabled(!delSync.getToggleState());delDivision.setEnabled(delSync.getToggleState());
-    rotRate.setEnabled(!rotSync.getToggleState());rotDivision.setEnabled(rotSync.getToggleState());
+    const bool ds=delSync.getToggleState(), rs=rotSync.getToggleState();
+    delTime.setEnabled(!ds);delDivision.setEnabled(ds);
+    rotRate.setEnabled(!rs);rotDivision.setEnabled(rs);
 }
