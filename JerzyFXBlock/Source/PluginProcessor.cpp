@@ -1,6 +1,28 @@
 #include "PluginProcessor.h"
 #include "PluginEditor.h"
 
+namespace
+{
+class HostAutomatableFloat final : public juce::AudioParameterFloat
+{
+public:
+    using juce::AudioParameterFloat::AudioParameterFloat;
+    bool isAutomatable() const override { return true; }
+};
+class HostAutomatableBool final : public juce::AudioParameterBool
+{
+public:
+    using juce::AudioParameterBool::AudioParameterBool;
+    bool isAutomatable() const override { return true; }
+};
+class HostAutomatableChoice final : public juce::AudioParameterChoice
+{
+public:
+    using juce::AudioParameterChoice::AudioParameterChoice;
+    bool isAutomatable() const override { return true; }
+};
+}
+
 JerzyFXBlockAudioProcessor::JerzyFXBlockAudioProcessor()
 : AudioProcessor(BusesProperties().withInput("Input",juce::AudioChannelSet::stereo(),true).withOutput("Output",juce::AudioChannelSet::stereo(),true)),
   apvts(*this,nullptr,"PARAMS",createLayout()) {}
@@ -83,7 +105,7 @@ void JerzyFXBlockAudioProcessor::setStateInformation(const void*d,int n)
 }
 juce::AudioProcessorValueTreeState::ParameterLayout JerzyFXBlockAudioProcessor::createLayout()
 {
-    using P=juce::AudioParameterFloat; using B=juce::AudioParameterBool; using C=juce::AudioParameterChoice;
+    using P = HostAutomatableFloat; using B = HostAutomatableBool; using C = HostAutomatableChoice;
     juce::AudioProcessorValueTreeState::ParameterLayout l;
     auto addFx=[&](const char* on){l.add(std::make_unique<B>(on,on,true));};
     addFx("revOn"); l.add(std::make_unique<P>("revSize","Reverb Size",0.f,1.f,.55f)); l.add(std::make_unique<P>("revDamp","Reverb Damp",0.f,1.f,.45f)); l.add(std::make_unique<P>("revMix","Reverb Mix",0.f,1.f,.25f));
