@@ -24,20 +24,12 @@ private:
                               float, float, juce::Slider&) override;
     };
 
-    struct ModuleControls
-    {
-        juce::ToggleButton enabled { "ON" };
-        std::array<juce::Slider*, 4> sliders { nullptr, nullptr, nullptr, nullptr };
-        std::array<juce::Label*, 4> labels { nullptr, nullptr, nullptr, nullptr };
-        int count = 0;
-    };
-
     void timerCallback() override;
-    void configureSlider(juce::Slider&, const juce::String& suffix);
-    void configureLabel(juce::Label&, const juce::String& text);
-    juce::Rectangle<int> scaledBounds(float x, float y, float w, float h) const;
-    void layoutModule(ModuleControls&, float x, float y, float w, float h);
-    void drawModule(juce::Graphics&, const juce::String& title, float x, float y, float w, float h, bool enabled);
+    void configureSlider(juce::Slider&, const juce::String&);
+    void configureLabel(juce::Label&, const juce::String&);
+    juce::Rectangle<int> scaledBounds(float, float, float, float) const;
+    void layoutModule(int moduleIndex, int start, int count, float x, float y, float w, float h);
+    void drawModule(juce::Graphics&, int moduleIndex, const juce::String&, float, float, float, float);
 
     JerzyAutoTuneAudioProcessor& processor;
     AnalogLookAndFeel analogLookAndFeel;
@@ -47,29 +39,16 @@ private:
     juce::Slider speedSlider, amountSlider, mixSlider;
     juce::Label keyLabel, scaleLabel, speedLabel, amountLabel, mixLabel;
 
-    juce::Slider gateThreshold, gateRelease;
-    juce::Slider noiseThreshold, noiseReduction;
-    juce::Slider deEssFreq, deEssAmount;
-    juce::Slider satDrive, satMix;
-    juce::Slider doublerAmount, doublerDelay;
-    juce::Slider compThreshold, compRatio, compMakeup, limiterCeiling;
-    juce::Slider eqLow, eqMid, eqHigh, outputGain;
-
-    juce::Label gateThresholdLabel, gateReleaseLabel;
-    juce::Label noiseThresholdLabel, noiseReductionLabel;
-    juce::Label deEssFreqLabel, deEssAmountLabel;
-    juce::Label satDriveLabel, satMixLabel;
-    juce::Label doublerAmountLabel, doublerDelayLabel;
-    juce::Label compThresholdLabel, compRatioLabel, compMakeupLabel, limiterCeilingLabel;
-    juce::Label eqLowLabel, eqMidLabel, eqHighLabel, outputGainLabel;
-
-    ModuleControls gateModule, noiseModule, deEssModule, satModule, doublerModule, compModule, eqModule;
+    static constexpr size_t vocalControlCount = 36;
+    std::array<juce::Slider, vocalControlCount> vocalSliders;
+    std::array<juce::Label, vocalControlCount> vocalLabels;
+    std::array<juce::ToggleButton, 7> moduleButtons;
 
     std::unique_ptr<ComboAttachment> keyAttachment, scaleAttachment;
     std::array<std::unique_ptr<ButtonAttachment>, 12> noteAttachments;
     std::unique_ptr<SliderAttachment> speedAttachment, amountAttachment, mixAttachment;
-    std::array<std::unique_ptr<SliderAttachment>, 18> vocalSliderAttachments;
-    std::array<std::unique_ptr<ButtonAttachment>, 7> vocalButtonAttachments;
+    std::array<std::unique_ptr<SliderAttachment>, vocalControlCount> vocalSliderAttachments;
+    std::array<std::unique_ptr<ButtonAttachment>, 7> moduleButtonAttachments;
 
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR(JerzyAutoTuneAudioProcessorEditor)
 };
