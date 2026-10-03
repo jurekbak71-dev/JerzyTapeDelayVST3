@@ -32,6 +32,10 @@ void JerzyMonoAnalogAudioProcessor::prepareToPlay(double sr, int bs)
     currentSampleRate = sr;
     engine.prepare(sr, bs);
     resetArpState();
+    gridSamplesToNext=0.0;
+    gridGlobalStep=0;
+    gridCurrentNote=-1;
+    gridPlayColumn.store(-1);
 }
 
 void JerzyMonoAnalogAudioProcessor::resetArpState()
@@ -43,6 +47,100 @@ void JerzyMonoAnalogAudioProcessor::resetArpState()
     arpHeldNotes.clear();
     arpLatchedNotes.clear();
     physicalHeldNotes.clear();
+}
+
+void JerzyMonoAnalogAudioProcessor::setGridStep(int bank,int column,int row,bool on)
+{
+    bank=juce::jlimit(0,7,bank); column=juce::jlimit(0,7,column); row=juce::jlimit(0,7,row);
+    if(on)
+    {
+        for(int r=0;r<8;++r)
+            gridPattern[(size_t)(bank*64 + r*8 + column)].store(0);
+    }
+    gridPattern[(size_t)(bank*64 + row*8 + column)].store(on?1:0);
+}
+
+bool JerzyMonoAnalogAudioProcessor::getGridStep(int bank,int column,int row) const
+{
+    bank=juce::jlimit(0,7,bank); column=juce::jlimit(0,7,column); row=juce::jlimit(0,7,row);
+    return gridPattern[(size_t)(bank*64 + row*8 + column)].load()!=0;
+}
+
+void JerzyMonoAnalogAudioProcessor::clearGridBank(int bank)
+{
+    bank=juce::jlimit(0,7,bank);
+    for(int i=0;i<64;++i) gridPattern[(size_t)(bank*64+i)].store(0);
+}
+
+int JerzyMonoAnalogAudioProcessor::gridNoteForRow(int row) const
+{
+    static constexpr int scale[8]={0,2,3,5,7,8,10,12};
+    return juce::jlimit(0,127,gridRootNote.load()+scale[juce::jlimit(0,7,7-row)]);
+}
+
+void JerzyMonoAnalogAudioProcessor::launchPadNoteOn(int padIndex)
+{
+    const int note=juce::jlimit(0,127,gridRootNote.load()+juce::jlimit(0,63,padIndex));
+    const int prev=launchPressedNote.exchange(note);
+    if(prev>=0) engine.noteOff(prev);
+    engine.noteOn(note,0.95f);
+}
+
+void JerzyMonoAnalogAudioProcessor::launchPadNoteOff(int padIndex)
+{
+    const int note=juce::jlimit(0,127,gridRootNote.load()+juce::jlimit(0,63,padIndex));
+    if(launchPressedNote.load()==note)
+    {
+        engine.noteOff(note);
+        launchPressedNote.store(-1);
+    }
+}
+
+void JerzyMonoAnalogAudioProcessor::processGridSequencerSample(double bpm)
+{
+    const bool on=apvts.getRawParameterValue("gridSeqOn")->load()>0.5f;
+    if(!on)
+    {
+        if(gridCurrentNote>=0){engine.noteOff(gridCurrentNote);gridCurrentNote=-1;}
+        gridPlayColumn.store(-1);
+        return;
+    }
+
+    static constexpr double q[]={4.0,2.0,1.0,0.5,0.25,0.125,2.0/3.0,1.0/3.0,1.0/6.0,1.5,0.75,0.375};
+    const int div=getChoiceIndex("gridDivision");
+    const double stepSamples=currentSampleRate*(60.0/juce::jmax(1.0,bpm))*q[juce::jlimit(0,11,div)];
+    const double gate=juce::jlimit(0.05f,0.98f,apvts.getRawParameterValue("gridGate")->load());
+
+    if(gridSamplesToNext<=0.0)
+    {
+        if(gridCurrentNote>=0){engine.noteOff(gridCurrentNote);gridCurrentNote=-1;}
+
+        const int step=gridGlobalStep&63;
+        const int bank=step/8;
+        const int col=step&7;
+        gridPlayColumn.store(col);
+
+        for(int row=0;row<8;++row)
+        {
+            if(gridPattern[(size_t)(bank*64+row*8+col)].load()!=0)
+            {
+                gridCurrentNote=gridNoteForRow(row);
+                engine.noteOn(gridCurrentNote,0.95f);
+                break;
+            }
+        }
+
+        gridGlobalStep=(gridGlobalStep+1)&63;
+        gridSamplesToNext+=stepSamples;
+    }
+
+    if(gridCurrentNote>=0 && gridSamplesToNext<=stepSamples*(1.0-gate))
+    {
+        engine.noteOff(gridCurrentNote);
+        gridCurrentNote=-1;
+    }
+
+    gridSamplesToNext-=1.0;
 }
 
 int JerzyMonoAnalogAudioProcessor::getChoiceIndex(const char* id) const
@@ -265,6 +363,7 @@ void JerzyMonoAnalogAudioProcessor::processBlock(juce::AudioBuffer<float>& b, ju
             }
         }
 
+        processGridSequencerSample(bpm);
         const float y = engine.processSample();
         for (int ch = 0; ch < b.getNumChannels(); ++ch) b.setSample(ch, s, y);
         const float ay = std::abs(y);
@@ -277,11 +376,33 @@ juce::AudioProcessorEditor* JerzyMonoAnalogAudioProcessor::createEditor() { retu
 
 void JerzyMonoAnalogAudioProcessor::getStateInformation(juce::MemoryBlock& mb)
 {
-    auto state = apvts.copyState(); std::unique_ptr<juce::XmlElement> xml(state.createXml()); copyXmlToBinary(*xml, mb);
+    auto state = apvts.copyState();
+    state.setProperty("gridMode",gridMode.load(),nullptr);
+    state.setProperty("gridBank",gridBank.load(),nullptr);
+    state.setProperty("gridRoot",gridRootNote.load(),nullptr);
+    juce::String bits;
+    for(size_t i=0;i<gridPattern.size();++i) bits << (gridPattern[i].load() ? "1" : "0");
+    state.setProperty("gridPattern",bits,nullptr);
+    std::unique_ptr<juce::XmlElement> xml(state.createXml()); copyXmlToBinary(*xml, mb);
 }
 void JerzyMonoAnalogAudioProcessor::setStateInformation(const void* d, int n)
 {
-    std::unique_ptr<juce::XmlElement> xml(getXmlFromBinary(d, n)); if (xml) apvts.replaceState(juce::ValueTree::fromXml(*xml));
+    std::unique_ptr<juce::XmlElement> xml(getXmlFromBinary(d, n));
+    if(xml)
+    {
+        auto st=juce::ValueTree::fromXml(*xml);
+        if(st.hasProperty("gridMode")) gridMode.store((int)st["gridMode"]);
+        if(st.hasProperty("gridBank")) gridBank.store((int)st["gridBank"]);
+        if(st.hasProperty("gridRoot")) gridRootNote.store((int)st["gridRoot"]);
+        if(st.hasProperty("gridPattern"))
+        {
+            auto bits=st["gridPattern"].toString();
+            const int count=juce::jmin((int)gridPattern.size(),bits.length());
+            for(int i=0;i<count;++i) gridPattern[(size_t)i].store(bits[i]=='1'?1:0);
+        }
+        st.removeProperty("gridMode",nullptr);st.removeProperty("gridBank",nullptr);st.removeProperty("gridRoot",nullptr);st.removeProperty("gridPattern",nullptr);
+        apvts.replaceState(st);
+    }
 }
 
 juce::AudioProcessorValueTreeState::ParameterLayout JerzyMonoAnalogAudioProcessor::createLayout()
@@ -335,6 +456,9 @@ juce::AudioProcessorValueTreeState::ParameterLayout JerzyMonoAnalogAudioProcesso
     l.add(std::make_unique<P>("arpGate","Arp Gate",0.05f,0.98f,0.72f));
     l.add(std::make_unique<B>("arpLatch","Arp Latch",false));
     l.add(std::make_unique<B>("arpRetrigger","Arp Retrigger",true));
+    l.add(std::make_unique<B>("gridSeqOn","Grid Sequencer On",false));
+    l.add(std::make_unique<C>("gridDivision","Grid Division",juce::StringArray{"1/1","1/2","1/4","1/8","1/16","1/32","1/4T","1/8T","1/16T","1/4D","1/8D","1/16D"},4));
+    l.add(std::make_unique<P>("gridGate","Grid Gate",0.05f,0.98f,0.75f));
     return l;
 }
 
