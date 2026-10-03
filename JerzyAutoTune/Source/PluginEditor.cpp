@@ -50,6 +50,9 @@ JerzyAutoTuneAudioProcessorEditor::JerzyAutoTuneAudioProcessorEditor(JerzyAutoTu
     configureSlider(speedSlider, " ms");
     configureSlider(amountSlider, " %");
     configureSlider(mixSlider, " %");
+    addAndMakeVisible(speedSlider);
+    addAndMakeVisible(amountSlider);
+    addAndMakeVisible(mixSlider);
 
     for (size_t i = 0; i < noteButtons.size(); ++i)
     {
@@ -132,11 +135,40 @@ JerzyAutoTuneAudioProcessorEditor::JerzyAutoTuneAudioProcessorEditor(JerzyAutoTu
         module->enabled.setColour(juce::ToggleButton::textColourId, cream);
         module->enabled.setColour(juce::ToggleButton::tickColourId, brass);
         addAndMakeVisible(module->enabled);
-        for (int i = 0; i < module->count; ++i)
-        {
-            addAndMakeVisible(*module->sliders[static_cast<size_t>(i)]);
-            addAndMakeVisible(*module->labels[static_cast<size_t>(i)]);
-        }
+        module->enabled.setVisible(true);
+        module->enabled.toFront(false);
+    }
+
+    const std::array<juce::Slider*, 18> visibleVocalSliders {
+        &gateThreshold, &gateRelease,
+        &noiseThreshold, &noiseReduction,
+        &deEssFreq, &deEssAmount,
+        &satDrive, &satMix,
+        &doublerAmount, &doublerDelay,
+        &compThreshold, &compRatio, &compMakeup, &limiterCeiling,
+        &eqLow, &eqMid, &eqHigh, &outputGain
+    };
+    for (auto* slider : visibleVocalSliders)
+    {
+        addAndMakeVisible(*slider);
+        slider->setVisible(true);
+        slider->toFront(false);
+    }
+
+    const std::array<juce::Label*, 18> visibleVocalLabels {
+        &gateThresholdLabel, &gateReleaseLabel,
+        &noiseThresholdLabel, &noiseReductionLabel,
+        &deEssFreqLabel, &deEssAmountLabel,
+        &satDriveLabel, &satMixLabel,
+        &doublerAmountLabel, &doublerDelayLabel,
+        &compThresholdLabel, &compRatioLabel, &compMakeupLabel, &limiterCeilingLabel,
+        &eqLowLabel, &eqMidLabel, &eqHighLabel, &outputGainLabel
+    };
+    for (auto* label : visibleVocalLabels)
+    {
+        addAndMakeVisible(*label);
+        label->setVisible(true);
+        label->toFront(false);
     }
 
     auto& state = processor.parameters;
@@ -270,6 +302,19 @@ void JerzyAutoTuneAudioProcessorEditor::resized()
     layoutModule(doublerModule, 65, 605, 300, 205);
     layoutModule(compModule, 375, 605, 470, 205);
     layoutModule(eqModule, 855, 605, 360, 205);
+
+    for (auto* slider : { &speedSlider, &amountSlider, &mixSlider })
+        slider->toFront(false);
+
+    for (auto* module : { &gateModule, &noiseModule, &deEssModule, &satModule, &doublerModule, &compModule, &eqModule })
+    {
+        module->enabled.toFront(false);
+        for (int i = 0; i < module->count; ++i)
+        {
+            module->sliders[static_cast<size_t>(i)]->toFront(false);
+            module->labels[static_cast<size_t>(i)]->toFront(false);
+        }
+    }
 }
 
 void JerzyAutoTuneAudioProcessorEditor::drawModule(juce::Graphics& g, const juce::String& title,
@@ -315,13 +360,13 @@ void JerzyAutoTuneAudioProcessorEditor::paint(juce::Graphics& g)
     g.setColour(juce::Colour(160, 160, 147));
     g.setFont(juce::Font(10.0f, juce::Font::bold));
     g.drawText("PITCH + COMPLETE VOCAL CHAIN", 930, 87, 250, 20, juce::Justification::centredRight);
-    g.drawText("VST3  ·  WINDOWS x64", 930, 111, 250, 18, juce::Justification::centredRight);
+    g.drawText("VST3  -  WINDOWS x64", 930, 111, 250, 18, juce::Justification::centredRight);
 
     g.setColour(face);
     g.fillRoundedRectangle(65, 165, 1150, 205, 8.0f);
     g.setColour(ink);
     g.setFont(juce::Font(12.0f, juce::Font::bold));
-    g.drawText("01  ·  PITCH CORRECTION", 84, 172, 300, 22, juce::Justification::centredLeft);
+    g.drawText("01  -  PITCH CORRECTION", 84, 172, 300, 22, juce::Justification::centredLeft);
     g.setFont(juce::Font(9.0f, juce::Font::bold));
     g.drawText("NOTE FILTER", 86, 244, 140, 16, juce::Justification::centredLeft);
 
@@ -341,7 +386,7 @@ void JerzyAutoTuneAudioProcessorEditor::paint(juce::Graphics& g)
 
     g.setColour(ink);
     g.setFont(juce::Font(12.0f, juce::Font::bold));
-    g.drawText("02  ·  VOCAL PROCESSING CHAIN", 65, 381, 420, 20, juce::Justification::centredLeft);
+    g.drawText("02  -  VOCAL PROCESSING CHAIN", 65, 381, 420, 20, juce::Justification::centredLeft);
 
     drawModule(g, "GATE", 65, 405, 270, 185, gateModule.enabled.getToggleState());
     drawModule(g, "NOISE FILTER", 345, 405, 270, 185, noiseModule.enabled.getToggleState());
@@ -355,7 +400,7 @@ void JerzyAutoTuneAudioProcessorEditor::paint(juce::Graphics& g)
     g.setFont(juce::Font(9.0f, juce::Font::bold));
     g.drawText("CHAIN: GATE  >  NOISE FILTER  >  DE-ESSER  >  SATURATION  >  DOUBLER  >  COMP/LIMITER  >  VOCAL EQ",
                66, 828, 980, 18, juce::Justification::centredLeft);
-    g.drawText("JERZY AUDIO  ·  STUDIO SERIES", 1010, 828, 205, 18, juce::Justification::centredRight);
+    g.drawText("JERZY AUDIO  -  STUDIO SERIES", 1010, 828, 205, 18, juce::Justification::centredRight);
 }
 
 void JerzyAutoTuneAudioProcessorEditor::timerCallback()
