@@ -108,7 +108,7 @@ JerzyMonoAnalogAudioProcessorEditor::JerzyMonoAnalogAudioProcessorEditor(JerzyMo
     preset.setText("VECTOR LCD GUI",juce::dontSendNotification);preset.setColour(juce::Label::textColourId,lcdText);preset.setColour(juce::Label::backgroundColourId,lcdBg);preset.setJustificationType(juce::Justification::centredRight);
     addAndMakeVisible(title);addAndMakeVisible(subtitle);addAndMakeVisible(preset);
 
-    arpPanelButton.setButtonText("ARP ▼");
+    arpPanelButton.setButtonText("ARP V");
     arpPanelButton.onClick=[this]{setArpPanelVisible(!arpPanelOpen);};
     addAndMakeVisible(arpPanelButton);
 
@@ -168,13 +168,17 @@ JerzyMonoAnalogAudioProcessorEditor::~JerzyMonoAnalogAudioProcessorEditor(){stop
 
 void JerzyMonoAnalogAudioProcessorEditor::setupKnob(ResetSlider& k,const juce::String& name,const juce::String& unit,double neutral)
 {
-    k.setSliderStyle(juce::Slider::RotaryHorizontalVerticalDrag);k.setTextBoxStyle(juce::Slider::TextBoxBelow,true,100,20);
+    k.setSliderStyle(juce::Slider::RotaryHorizontalVerticalDrag);
+    k.setTextBoxStyle(juce::Slider::TextBoxBelow,true,100,20);
+    k.setNumDecimalPlacesToDisplay(1);
     k.textFromValueFunction=[unit](double v){return juce::String(v,1)+(unit.isEmpty()?"":" "+unit);};
     k.setNeutralValue(neutral);k.setTooltip(name);addAndMakeVisible(k);
 }
 void JerzyMonoAnalogAudioProcessorEditor::setupEnvSlider(ResetSlider& k,const juce::String& name,const juce::String& unit,double neutral)
 {
-    k.setSliderStyle(juce::Slider::LinearVertical);k.setTextBoxStyle(juce::Slider::TextBoxBelow,true,58,19);
+    k.setSliderStyle(juce::Slider::LinearVertical);
+    k.setTextBoxStyle(juce::Slider::TextBoxBelow,true,58,19);
+    k.setNumDecimalPlacesToDisplay(1);
     k.textFromValueFunction=[unit](double v){return juce::String(v,1)+(unit.isEmpty()?"":" "+unit);};
     k.setNeutralValue(neutral);k.setTooltip(name);addAndMakeVisible(k);
 }
@@ -213,9 +217,9 @@ void JerzyMonoAnalogAudioProcessorEditor::paint(juce::Graphics& g)
     drawEnvelope(g,{35,330,215,34},false);drawEnvelope(g,{295,330,215,34},true);
 
     // Row 1 labels
-    drawLabelBox(g,"WAVE",30,92,105);drawLabelBox(g,"OCTAVE",145,92,95);drawLabelBox(g,"LEVEL",35,263,90);drawLabelBox(g,"PULSE WIDTH",145,263,90);
-    drawLabelBox(g,"WAVE",285,92,110);drawLabelBox(g,"OCTAVE",405,92,100);drawLabelBox(g,"LEVEL",290,263,95);drawLabelBox(g,"DETUNE",410,263,95);
-    drawLabelBox(g,"SUB WAVE",555,92,170);drawLabelBox(g,"SUB LEVEL",555,263,80);drawLabelBox(g,"NOISE",645,263,80);
+    drawLabelBox(g,"WAVE",30,108,105);drawLabelBox(g,"OCTAVE",145,108,95);drawLabelBox(g,"LEVEL",35,263,90);drawLabelBox(g,"PULSE WIDTH",145,263,90);
+    drawLabelBox(g,"WAVE",285,108,110);drawLabelBox(g,"OCTAVE",405,108,100);drawLabelBox(g,"LEVEL",290,263,95);drawLabelBox(g,"DETUNE",410,263,95);
+    drawLabelBox(g,"SUB WAVE",555,108,170);drawLabelBox(g,"SUB LEVEL",555,263,80);drawLabelBox(g,"NOISE",645,263,80);
     drawLabelBox(g,"MIX DRIVE",770,263,75);drawLabelBox(g,"DRIFT",855,263,65);
     drawLabelBox(g,"CUTOFF",958,263,82);drawLabelBox(g,"RESONANCE",1048,263,82);drawLabelBox(g,"FILTER DRIVE",1138,263,82);drawLabelBox(g,"ENV AMOUNT",1228,263,82);drawLabelBox(g,"KEY TRACK",1318,263,82);
 
@@ -224,8 +228,8 @@ void JerzyMonoAnalogAudioProcessorEditor::paint(juce::Graphics& g)
     drawLabelBox(g,"A",292,477,48);drawLabelBox(g,"D",352,477,48);drawLabelBox(g,"S",412,477,48);drawLabelBox(g,"R",472,477,48);
 
     // LFO
-    drawLabelBox(g,"WAVE",555,318,120);drawLabelBox(g,"DIVISION",685,318,120);drawLabelBox(g,"SYNC",815,318,110);
-    drawLabelBox(g,"RATE",555,477,120);drawLabelBox(g,"PITCH",690,477,120);drawLabelBox(g,"FILTER",825,477,120);drawLabelBox(g,"PWM",960,477,120);drawLabelBox(g,"AMP",1095,477,120);drawLabelBox(g,"FADE IN",1230,477,120);
+    drawLabelBox(g,"WAVE",555,334,120);drawLabelBox(g,"DIVISION",685,334,120);drawLabelBox(g,"SYNC",815,334,110);
+    drawLabelBox(g,"RATE",555,482,120);drawLabelBox(g,"PITCH",690,482,120);drawLabelBox(g,"FILTER",825,482,120);drawLabelBox(g,"PWM",960,482,120);drawLabelBox(g,"AMP",1095,482,120);drawLabelBox(g,"FADE IN",1230,482,120);
 
     // Play and output
     drawLabelBox(g,"GLIDE",35,665,105);drawLabelBox(g,"GLIDE MODE",165,550,145);drawLabelBox(g,"NOTE PRIORITY",325,550,145);
@@ -249,9 +253,9 @@ void JerzyMonoAnalogAudioProcessorEditor::resized()
     preset.setFont(juce::Font(juce::FontOptions(juce::Font::getDefaultMonospacedFontName(),10*sc,juce::Font::bold)));
     place(title,20,10,310,40);place(subtitle,515,13,410,35);place(preset,1110,13,290,35);place(arpPanelButton,1320,684,95,28);
 
-    place(osc1Wave,30,110,105,30);place(osc1Oct,145,110,95,30);place(osc1Level,35,155,90,100);place(pulseWidth,145,155,90,100);
-    place(osc2Wave,285,110,110,30);place(osc2Oct,405,110,100,30);place(osc2Level,290,155,95,100);place(detune,410,155,95,100);
-    place(subWave,555,110,170,30);place(subLevel,555,155,80,100);place(noiseLevel,645,155,80,100);
+    place(osc1Wave,30,128,105,30);place(osc1Oct,145,128,95,30);place(osc1Level,35,168,90,88);place(pulseWidth,145,168,90,88);
+    place(osc2Wave,285,128,110,30);place(osc2Oct,405,128,100,30);place(osc2Level,290,168,95,88);place(detune,410,168,95,88);
+    place(subWave,555,128,170,30);place(subLevel,555,168,80,88);place(noiseLevel,645,168,80,88);
     place(mixDrive,770,155,75,100);place(drift,855,155,65,100);
 
     place(cutoff,958,145,82,110);place(resonance,1048,145,82,110);place(filterDrive,1138,145,82,110);place(filterEnv,1228,145,82,110);place(keyTrack,1318,145,82,110);
@@ -259,8 +263,8 @@ void JerzyMonoAnalogAudioProcessorEditor::resized()
     place(aA,38,370,35,98);place(aD,98,370,35,98);place(aS,158,370,35,98);place(aR,218,370,35,98);
     place(fA,298,370,35,98);place(fD,358,370,35,98);place(fS,418,370,35,98);place(fR,478,370,35,98);
 
-    place(lfoWave,555,338,120,30);place(lfoDivision,685,338,120,30);place(lfoSync,815,338,110,30);
-    place(lfoRate,555,382,120,88);place(lfoPitch,690,382,120,88);place(lfoFilter,825,382,120,88);place(lfoPWM,960,382,120,88);place(lfoAmp,1095,382,120,88);place(lfoFade,1230,382,120,88);
+    place(lfoWave,555,354,120,30);place(lfoDivision,685,354,120,30);place(lfoSync,815,354,110,30);
+    place(lfoRate,555,398,120,72);place(lfoPitch,690,398,120,72);place(lfoFilter,825,398,120,72);place(lfoPWM,960,398,120,72);place(lfoAmp,1095,398,120,72);place(lfoFade,1230,398,120,72);
 
     place(glide,35,555,105,105);place(glideMode,165,572,145,32);place(priority,325,572,145,32);place(legato,500,572,120,32);place(retrigger,630,572,90,32);
     place(outputMeter,770,575,210,28);place(outDrive,1040,550,110,108);place(master,1190,550,110,108);
@@ -274,7 +278,7 @@ void JerzyMonoAnalogAudioProcessorEditor::resized()
 
 void JerzyMonoAnalogAudioProcessorEditor::setArpPanelVisible(bool open)
 {
-    arpPanelOpen=open;arpPanelButton.setButtonText(open?"ARP ▲":"ARP ▼");
+    arpPanelOpen=open;arpPanelButton.setButtonText(open?"ARP ^":"ARP V");
     for(auto*c:{(juce::Component*)&arpOn,(juce::Component*)&arpDivision,(juce::Component*)&arpPattern,(juce::Component*)&arpRhythm,(juce::Component*)&arpOctaves,(juce::Component*)&arpGate,(juce::Component*)&arpLatch,(juce::Component*)&arpRetrigger})c->setVisible(open);
     const int w=getWidth();setSize(w,juce::roundToInt((open?900.0f:720.0f)*(w/1440.0f)));resized();repaint();
 }
