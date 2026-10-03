@@ -260,6 +260,7 @@ void JerzyMonoAnalogAudioProcessor::processBlock(juce::AudioBuffer<float>& b, ju
     p.outputDrive = apvts.getRawParameterValue("outDrive")->load();
     p.master = apvts.getRawParameterValue("master")->load();
     p.analogDriftCents = apvts.getRawParameterValue("drift")->load();
+    gridRootNote.store(juce::roundToInt(apvts.getRawParameterValue("gridRoot")->load()));
     p.legato = apvts.getRawParameterValue("legato")->load() > 0.5f;
     p.retrigger = apvts.getRawParameterValue("retrigger")->load() > 0.5f;
     const int pr = getChoiceIndex("priority");
@@ -459,6 +460,7 @@ juce::AudioProcessorValueTreeState::ParameterLayout JerzyMonoAnalogAudioProcesso
     l.add(std::make_unique<B>("gridSeqOn","Grid Sequencer On",false));
     l.add(std::make_unique<C>("gridDivision","Grid Division",juce::StringArray{"1/1","1/2","1/4","1/8","1/16","1/32","1/4T","1/8T","1/16T","1/4D","1/8D","1/16D"},4));
     l.add(std::make_unique<P>("gridGate","Grid Gate",0.05f,0.98f,0.75f));
+    l.add(std::make_unique<P>("gridRoot","Grid Root Note",juce::NormalisableRange<float>(24.0f,84.0f,1.0f),48.0f));
     return l;
 }
 
