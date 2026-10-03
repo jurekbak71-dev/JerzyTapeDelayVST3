@@ -5,7 +5,68 @@ JerzyMonoAnalogAudioProcessor::JerzyMonoAnalogAudioProcessor()
 : AudioProcessor(BusesProperties().withOutput("Output", juce::AudioChannelSet::stereo(), true)),
   apvts(*this, nullptr, "PARAMS", createLayout()) {}
 
-void JerzyMonoAnalogAudioProcessor::prepareToPlay(double sr, int bs) { engine.prepare(sr, bs); }
+void JerzyMonoAnalogAudioProcessor::prepareToPlay(double sr, int bs)
+{
+    currentSampleRate = sr;
+    engine.prepare(sr, bs);
+    resetArpState();
+}
+
+void JerzyMonoAnalogAudioProcessor::resetArpState()
+{
+    arpSamplesToNext = 0.0;
+    arpStep = 0;
+    arpCurrentNote = -1;
+    arpUpDownPos = 0;
+    arpHeldNotes.clear();
+    arpLatchedNotes.clear();
+    physicalHeldNotes.clear();
+}
+
+int JerzyMonoAnalogAudioProcessor::getChoiceIndex(const char* id) const
+{
+    if (auto* p = dynamic_cast<juce::AudioParameterChoice*>(apvts.getParameter(id)))
+        return p->getIndex();
+    return (int) apvts.getRawParameterValue(id)->load();
+}
+
+bool JerzyMonoAnalogAudioProcessor::arpRhythmGate(int rhythm, int step) const
+{
+    switch (rhythm)
+    {
+        case 1: return (step % 2) == 0;                           // every 2
+        case 2: { static constexpr int m[8]={1,0,1,1,0,1,0,1}; return m[step & 7] != 0; } // 3-3-2 feel
+        case 3: { static constexpr int m[8]={1,1,0,1,0,1,1,0}; return m[step & 7] != 0; } // syncopated
+        default:return true;
+    }
+}
+
+int JerzyMonoAnalogAudioProcessor::chooseArpNote(int pattern, int step)
+{
+    auto notes = arpLatchedNotes;
+    if (notes.isEmpty()) return -1;
+    std::sort(notes.begin(), notes.end());
+    const int n = notes.size();
+
+    switch (pattern)
+    {
+        case 1: return notes[(n - 1 - (step % n) + n) % n]; // down
+        case 2:
+        {
+            if (n == 1) return notes[0];
+            const int span = n * 2 - 2;
+            const int p = step % span;
+            return notes[p < n ? p : span - p];
+        }
+        case 3:
+        {
+            std::uniform_int_distribution<int> d(0, n - 1);
+            return notes[d(arpRng)];
+        }
+        case 4: return notes[step % n]; // as played fallback
+        default:return notes[step % n]; // up
+    }
+}
 
 bool JerzyMonoAnalogAudioProcessor::isBusesLayoutSupported(const BusesLayout& l) const
 {
@@ -26,6 +87,7 @@ void JerzyMonoAnalogAudioProcessor::processBlock(juce::AudioBuffer<float>& b, ju
 {
     juce::ScopedNoDenormals noDenormals;
     b.clear();
+
     jerzy::MonoParameters p;
     p.osc1Wave = waveFrom(apvts.getRawParameterValue("osc1Wave")->load());
     p.osc2Wave = waveFrom(apvts.getRawParameterValue("osc2Wave")->load());
@@ -55,25 +117,21 @@ void JerzyMonoAnalogAudioProcessor::processBlock(juce::AudioBuffer<float>& b, ju
     p.glideSeconds = apvts.getRawParameterValue("glide")->load();
     p.lfoWave = lfoWaveFrom(apvts.getRawParameterValue("lfoWave")->load());
     p.lfoRate = apvts.getRawParameterValue("lfoRate")->load();
-    const bool lfoSync = apvts.getRawParameterValue("lfoSync")->load() > 0.5f;
-    if (lfoSync)
-    {
-        double bpm = 120.0;
-        if (auto* ph = getPlayHead())
-            if (auto pos = ph->getPosition())
-                if (auto hostBpm = pos->getBpm())
-                    bpm = *hostBpm;
 
-        const int div = (int) apvts.getRawParameterValue("lfoDivision")->load();
+    double bpm = 120.0;
+    if (auto* ph = getPlayHead())
+        if (auto pos = ph->getPosition())
+            if (auto hostBpm = pos->getBpm())
+                bpm = *hostBpm;
+
+    if (apvts.getRawParameterValue("lfoSync")->load() > 0.5f)
+    {
         static constexpr double cyclesPerQuarter[] =
-        {
-            0.25, 0.5, 1.0, 2.0, 4.0, 8.0,
-            1.5, 3.0, 6.0,
-            2.0/3.0, 4.0/3.0, 8.0/3.0
-        };
-        const int idx = juce::jlimit(0, 11, div);
+        { 0.25,0.5,1.0,2.0,4.0,8.0,1.5,3.0,6.0,2.0/3.0,4.0/3.0,8.0/3.0 };
+        const int idx = juce::jlimit(0,11,getChoiceIndex("lfoDivision"));
         p.lfoRate = (bpm / 60.0) * cyclesPerQuarter[idx];
     }
+
     p.lfoPitchCents = apvts.getRawParameterValue("lfoPitch")->load();
     p.lfoFilterOct = apvts.getRawParameterValue("lfoFilter")->load();
     p.lfoPWM = apvts.getRawParameterValue("lfoPWM")->load();
@@ -84,24 +142,107 @@ void JerzyMonoAnalogAudioProcessor::processBlock(juce::AudioBuffer<float>& b, ju
     p.analogDriftCents = apvts.getRawParameterValue("drift")->load();
     p.legato = apvts.getRawParameterValue("legato")->load() > 0.5f;
     p.retrigger = apvts.getRawParameterValue("retrigger")->load() > 0.5f;
-    const int pr = (int) apvts.getRawParameterValue("priority")->load();
+    const int pr = getChoiceIndex("priority");
     p.priority = pr == 1 ? jerzy::NotePriority::low : (pr == 2 ? jerzy::NotePriority::high : jerzy::NotePriority::last);
-    p.glideMode = apvts.getRawParameterValue("glideMode")->load() > 0.5f ? jerzy::GlideMode::legatoOnly : jerzy::GlideMode::always;
+    p.glideMode = getChoiceIndex("glideMode") > 0 ? jerzy::GlideMode::legatoOnly : jerzy::GlideMode::always;
     engine.setParameters(p);
 
-    auto it = midi.cbegin();
+    const bool arpOn = apvts.getRawParameterValue("arpOn")->load() > 0.5f;
+    const bool arpLatch = apvts.getRawParameterValue("arpLatch")->load() > 0.5f;
+    const bool arpRetrig = apvts.getRawParameterValue("arpRetrigger")->load() > 0.5f;
+    const int arpPattern = getChoiceIndex("arpPattern");
+    const int arpRhythm = getChoiceIndex("arpRhythm");
+    const int arpDiv = getChoiceIndex("arpDivision");
+    const int arpOctaves = 1 + getChoiceIndex("arpOctaves");
+    const float arpGate = apvts.getRawParameterValue("arpGate")->load();
+
+    static constexpr double quarterMult[] =
+    { 4.0,2.0,1.0,0.5,0.25,0.125,2.0/3.0,1.0/3.0,1.0/6.0,1.5,0.75,0.375 };
+    const double stepSamples = currentSampleRate * (60.0 / juce::jmax(1.0,bpm)) * quarterMult[juce::jlimit(0,11,arpDiv)];
+    const double gateSamples = stepSamples * juce::jlimit(0.05f,0.98f,arpGate);
+
+    auto midiIt = midi.cbegin();
+    bool hasMidi = midiIt != midi.cend();
     juce::MidiMessageMetadata ev;
-    bool has = it != midi.cend();
-    if (has) ev = *it;
+    if (hasMidi) ev = *midiIt;
+
     for (int s = 0; s < b.getNumSamples(); ++s)
     {
-        while (has && ev.samplePosition <= s)
+        while (hasMidi && ev.samplePosition <= s)
         {
-            auto m = ev.getMessage();
-            if (m.isNoteOn()) engine.noteOn(m.getNoteNumber(), m.getFloatVelocity());
-            else if (m.isNoteOff()) engine.noteOff(m.getNoteNumber());
-            ++it; has = it != midi.cend(); if (has) ev = *it;
+            const auto m = ev.getMessage();
+            if (m.isNoteOn())
+            {
+                const int note = m.getNoteNumber();
+                if (!physicalHeldNotes.contains(note))
+                    physicalHeldNotes.add(note);
+
+                if (arpOn)
+                {
+                    if (arpLatch && physicalHeldNotes.size() == 1)
+                        arpLatchedNotes.clear();
+
+                    if (!arpHeldNotes.contains(note)) arpHeldNotes.add(note);
+                    if (!arpLatchedNotes.contains(note)) arpLatchedNotes.add(note);
+                    if (arpRetrig) { arpStep = 0; arpSamplesToNext = 0.0; }
+                }
+                else engine.noteOn(note, m.getFloatVelocity());
+            }
+            else if (m.isNoteOff())
+            {
+                const int note = m.getNoteNumber();
+                physicalHeldNotes.removeAllInstancesOf(note);
+
+                if (arpOn)
+                {
+                    arpHeldNotes.removeAllInstancesOf(note);
+                    if (!arpLatch)
+                        arpLatchedNotes.removeAllInstancesOf(note);
+                }
+                else engine.noteOff(note);
+            }
+
+            ++midiIt;
+            hasMidi = midiIt != midi.cend();
+            if (hasMidi) ev = *midiIt;
         }
+
+        if (arpOn)
+        {
+            if (arpLatchedNotes.isEmpty())
+            {
+                if (arpCurrentNote >= 0) { engine.noteOff(arpCurrentNote); arpCurrentNote = -1; }
+            }
+            else
+            {
+                if (arpSamplesToNext <= 0.0)
+                {
+                    if (arpCurrentNote >= 0) { engine.noteOff(arpCurrentNote); arpCurrentNote = -1; }
+
+                    if (arpRhythmGate(arpRhythm, arpStep))
+                    {
+                        const int base = chooseArpNote(arpPattern, arpStep);
+                        if (base >= 0)
+                        {
+                            const int octave = (arpStep / juce::jmax(1,arpLatchedNotes.size())) % arpOctaves;
+                            arpCurrentNote = juce::jlimit(0,127,base + octave * 12);
+                            engine.noteOn(arpCurrentNote, 0.9f);
+                        }
+                    }
+                    ++arpStep;
+                    arpSamplesToNext += stepSamples;
+                }
+
+                if (arpCurrentNote >= 0 && arpSamplesToNext <= (stepSamples - gateSamples))
+                {
+                    engine.noteOff(arpCurrentNote);
+                    arpCurrentNote = -1;
+                }
+
+                arpSamplesToNext -= 1.0;
+            }
+        }
+
         const float y = engine.processSample();
         for (int ch = 0; ch < b.getNumChannels(); ++ch) b.setSample(ch, s, y);
         const float ay = std::abs(y);
@@ -164,6 +305,14 @@ juce::AudioProcessorValueTreeState::ParameterLayout JerzyMonoAnalogAudioProcesso
     l.add(std::make_unique<P>("master","Master",0.0f,1.0f,0.8f));
     l.add(std::make_unique<P>("drift","Analog Drift",0.0f,6.0f,2.0f));
     l.add(std::make_unique<B>("legato","Legato",true)); l.add(std::make_unique<B>("retrigger","Retrigger",false));
+    l.add(std::make_unique<B>("arpOn","Arpeggiator On",false));
+    l.add(std::make_unique<C>("arpDivision","Arp Division",juce::StringArray{"1/1","1/2","1/4","1/8","1/16","1/32","1/4T","1/8T","1/16T","1/4D","1/8D","1/16D"},4));
+    l.add(std::make_unique<C>("arpPattern","Arp Pattern",juce::StringArray{"Up","Down","UpDown","Random","As Played"},0));
+    l.add(std::make_unique<C>("arpRhythm","Arp Rhythm",juce::StringArray{"Straight","Every 2","3-3-2","Syncopated"},0));
+    l.add(std::make_unique<C>("arpOctaves","Arp Octaves",juce::StringArray{"1","2","3","4"},0));
+    l.add(std::make_unique<P>("arpGate","Arp Gate",0.05f,0.98f,0.72f));
+    l.add(std::make_unique<B>("arpLatch","Arp Latch",false));
+    l.add(std::make_unique<B>("arpRetrigger","Arp Retrigger",true));
     return l;
 }
 
