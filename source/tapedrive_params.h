@@ -22,7 +22,10 @@ enum TapeDriveParamIds : unsigned int {
     kOptoAmountId,
     kOptoMakeupId,
     kOptoBypassId,
-    kOptoMeterId
+    kOptoMeterId,
+    kOptoColorId,
+    kOptoRecoveryId,
+    kOptoMixId
 };
 struct TapeDriveParams {
     double sat=0.35;
@@ -43,6 +46,9 @@ struct TapeDriveParams {
     double optoAmount=0.35;
     double optoMakeup=0.5;
     double optoBypass=0.0;
+    double optoColor=0.4;
+    double optoRecovery=0.5;
+    double optoMix=1.0;
 };
 // ID 311 is retained for host automation and sessions made before Wow/Flutter split.
 constexpr unsigned int kWowId = kWowFlutterId;

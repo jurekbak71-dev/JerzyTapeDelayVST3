@@ -1,207 +1,76 @@
 #include "tapedrive_editor.h"
-#include "tapedrive_editor_geometry.h"
+#include "tapedrive_gui_views.h"
+#include "tapedrive_params.h"
 #include "vstgui/lib/cframe.h"
-#include "vstgui/lib/cgraphicstransform.h"
-#include "vstgui/lib/controls/ccontrol.h"
 #include "vstgui/lib/platform/iplatformframe.h"
+#include "vstgui/lib/cvstguitimer.h"
+#include "base/source/fstring.h"
+#include <algorithm>
+#include <cmath>
+#include <cstdio>
 #if defined(_WIN32)
+#ifndef NOMINMAX
+#define NOMINMAX
+#endif
 #include <windows.h>
-#include <commctrl.h>
 #endif
-
+using namespace VSTGUI;using namespace Steinberg;using namespace Steinberg::Vst;
 namespace JerzyAudio {
-
-// Some Windows hosts resize the embedding HWND without calling IPlugView::onSize.
-// Observe that immediate parent only (never the DAW's top-level window), as well
-// as direct native child resizes. Keep SDK callbacks and native resizes in sync.
-struct TapeDriveEditor::NativeResizeWatcher {
+namespace {constexpr int baseW=880,baseH=560;constexpr int zoom70=9001,zoom85=9002,zoom100=9003,zoom120=9004,gripTag=9010;}
+TapeDriveEditor::TapeDriveEditor(EditController*c):VSTGUIEditor(c){setRect({0,0,baseW,baseH});setIdleRate(33);}
+TapeDriveEditor::~TapeDriveEditor(){close();}
+tresult PLUGIN_API TapeDriveEditor::queryInterface(const TUID id,void**out){QUERY_INTERFACE(id,out,IPlugViewContentScaleSupport::iid,IPlugViewContentScaleSupport);QUERY_INTERFACE(id,out,IParameterFinder::iid,IParameterFinder);return VSTGUIEditor::queryInterface(id,out);}
+void TapeDriveEditor::constrain(int&w,int&h,bool screen)const{
+ double z=std::clamp(w/double(baseW),.7,1.6);
 #if defined(_WIN32)
-    TapeDriveEditor& editor;
-    HWND parent=nullptr, child=nullptr;
-    UINT_PTR timer=0;
-    RECT lastParent{},lastChild{};
-    NativeResizeWatcher(TapeDriveEditor& e, void* p, void* c):editor(e),parent(static_cast<HWND>(p)),child(static_cast<HWND>(c)) {
-        SetWindowSubclass(parent,callback,reinterpret_cast<UINT_PTR>(this),reinterpret_cast<DWORD_PTR>(this));
-        SetWindowSubclass(child,callback,reinterpret_cast<UINT_PTR>(this),reinterpret_cast<DWORD_PTR>(this));
-        GetClientRect(parent,&lastParent);GetClientRect(child,&lastChild);
-        timer=SetTimer(child,reinterpret_cast<UINT_PTR>(this),100,nullptr);
-    }
-    ~NativeResizeWatcher(){
-        if(child && timer)KillTimer(child,timer);
-        if(parent)RemoveWindowSubclass(parent,callback,reinterpret_cast<UINT_PTR>(this));
-        if(child)RemoveWindowSubclass(child,callback,reinterpret_cast<UINT_PTR>(this));
-    }
-    void fit(HWND window){
-        if(editor.applyingSize || !editor.getFrame())return;
-        RECT r{};
-        if(!GetClientRect(window,&r) || r.right<=0 || r.bottom<=0)return;
-        const auto current=editor.getRect();
-        const auto transform=editor.getFrame()->getTransform();
-        const auto bounds=editor.getFrame()->getViewSize();
-        const bool sized=current.getWidth()==r.right && current.getHeight()==r.bottom
-            && bounds.getWidth()==r.right && bounds.getHeight()==r.bottom;
-        const bool scaled=std::abs(transform.m11-r.right/TapeDriveEditorGeometry::width)<1e-8
-            && std::abs(transform.m22-r.bottom/TapeDriveEditorGeometry::height)<1e-8;
-        if(sized && scaled)return;
-        Steinberg::ViewRect rect(0,0,r.right,r.bottom);
-        editor.onSize(&rect);
-    }
-    void reconcile(){
-        if(editor.applyingSize || !parent || !child)return;
-        RECT p{},c{};
-        if(!GetClientRect(parent,&p) || !GetClientRect(child,&c))return;
-        const bool parentChanged=p.right!=lastParent.right || p.bottom!=lastParent.bottom;
-        const bool childChanged=c.right!=lastChild.right || c.bottom!=lastChild.bottom;
-        if(parentChanged)fit(parent);
-        else if(childChanged)fit(child);
-        else {
-            // A DPI/zoom callback may reset the CFrame transform without changing
-            // HWND dimensions. Reconcile the view too, even when WM_SIZE is absent.
-            const auto size=editor.getRect();
-            const auto transform=editor.getFrame()->getTransform();
-            if(std::abs(transform.m11-size.getWidth()/TapeDriveEditorGeometry::width)>1e-8 ||
-               std::abs(transform.m22-size.getHeight()/TapeDriveEditorGeometry::height)>1e-8)
-                editor.fitHostSize(size);
-        }
-        GetClientRect(parent,&lastParent);GetClientRect(child,&lastChild);
-    }
-    static LRESULT CALLBACK callback(HWND window,UINT message,WPARAM w,LPARAM l,UINT_PTR id,DWORD_PTR data){
-        auto* self=reinterpret_cast<NativeResizeWatcher*>(data);
-        if(message==WM_NCDESTROY){
-            RemoveWindowSubclass(window,callback,id);
-            if(window==self->parent)self->parent=nullptr;
-            if(window==self->child)self->child=nullptr;
-            return DefSubclassProc(window,message,w,l);
-        }
-        const auto result=DefSubclassProc(window,message,w,l);
-        if(message==WM_SIZE && w!=SIZE_MINIMIZED)self->fit(window);
-        if(message==WM_WINDOWPOSCHANGED || message==WM_DPICHANGED_AFTERPARENT ||
-           (message==WM_TIMER && w==self->timer))self->reconcile();
-        return result;
-    }
-#else
-    NativeResizeWatcher(TapeDriveEditor&,void*,void*){}
+ if(screen){RECT work{};HMONITOR m=MonitorFromWindow(static_cast<HWND>(nativeParent),MONITOR_DEFAULTTONEAREST);MONITORINFO info{sizeof(info)};if(GetMonitorInfoW(m,&info))work=info.rcWork;else SystemParametersInfoW(SPI_GETWORKAREA,0,&work,0);if(work.right>work.left && work.bottom>work.top)z=std::min(z,std::min((work.right-work.left-80.)/baseW,(work.bottom-work.top-120.)/baseH));}
 #endif
-};
-
-TapeDriveEditor::~TapeDriveEditor(){delete nativeWatcher;}
-void PLUGIN_API TapeDriveEditor::close(){
-    delete nativeWatcher;nativeWatcher=nullptr;
-    VSTGUI::VST3Editor::close();
+ w=int(std::lround(baseW*z));h=int(std::lround(baseH*z));
 }
-
-
-bool PLUGIN_API TapeDriveEditor::open(void* parent,const VSTGUI::PlatformType& type)
-{
-    if(!VSTGUI::VST3Editor::open(parent,type))return false;
-    // VST3Editor recreates the frame transform while loading its template.
-    // Reconcile it with the actual host rectangle after the template exists.
-    fitHostSize(getRect());
+bool PLUGIN_API TapeDriveEditor::open(void*parent,const PlatformType&type){
+ nativeParent=parent;int w=getRect().getWidth(),h=getRect().getHeight();constrain(w,h,true);setRect({0,0,w,h});
+ frame=new CFrame({0,0,double(w),double(h)},this);frame->setAutosizingEnabled(false);frame->setBackgroundColor(CColor(24,28,33));
+ panel=new VectorPanel({0,0,double(w),double(h)});frame->addView(panel);
+ auto add=[&](int tag,VectorControl::Kind kind,const char*label,double x,double y,double cw,double ch,int steps=0){auto*c=new VectorControl({x,y,x+cw,y+ch},this,tag,kind,label,steps);if(tag<9000){auto*p=controller->getParameterObject(tag);if(p)c->setDefaultValue(float(p->getInfo().defaultNormalizedValue));}controls.push_back(c);frame->addView(c);};
+ add(zoom70,VectorControl::Action,"70%",542,18,68,32);add(zoom85,VectorControl::Action,"85%",620,18,68,32);add(zoom100,VectorControl::Action,"100%",698,18,68,32);add(zoom120,VectorControl::Action,"120%",776,18,68,32);
+ add(kOptoAmountId,VectorControl::Knob,"REDUCTION",26,112,80,86);add(kOptoColorId,VectorControl::Knob,"COLOUR",112,112,80,86);add(kOptoMakeupId,VectorControl::Knob,"MAKEUP",198,112,80,86);
+ add(kOptoRecoveryId,VectorControl::Knob,"RECOVERY",26,200,80,76);add(kOptoMixId,VectorControl::Knob,"MIX",112,200,80,76);
+ add(kOptoBypassId,VectorControl::Choice,"COMP",198,210,80,24,1);add(kOptoMeterId,VectorControl::Meter,"GR",198,241,80,32);
+ add(kSatId,VectorControl::Knob,"DRIVE",318,116,112,122);add(kPreampDriveId,VectorControl::Knob,"PREAMP DRIVE",446,116,112,122);
+ add(kPreampModeId,VectorControl::Choice,"PREAMP",316,246,142,26,2);add(kGainModeId,VectorControl::Choice,"GAIN",466,246,98,26,1);
+ add(kLevelId,VectorControl::Knob,"LEVEL",606,116,112,122);add(kDryId,VectorControl::Knob,"DRY",734,116,112,122);add(kDriveBypassId,VectorControl::Choice,"TAPE DRIVE",606,246,240,26,1);
+ add(kWowId,VectorControl::Knob,"WOW",30,332,116,117);add(kFlutterId,VectorControl::Knob,"FLUTTER",164,332,116,117);add(kTapeAgeId,VectorControl::Knob,"AGE",298,332,116,117);
+ add(kHPFCutoffId,VectorControl::Knob,"HPF",456,332,92,108);add(kHPFResId,VectorControl::Knob,"HPF Q",558,332,92,108);add(kLPFCutoffId,VectorControl::Knob,"LPF",660,332,92,108);add(kLPFResId,VectorControl::Knob,"LPF Q",762,332,92,108);add(kShiftId,VectorControl::Choice,"CONTOUR",458,447,394,21,2);
+ add(kInputMeterId,VectorControl::Meter,"INPUT",28,494,244,44);add(kDriveMeterId,VectorControl::Meter,"OUTPUT",316,494,244,44);add(kSaturationMeterId,VectorControl::Meter,"SATURATION",604,494,238,44);add(gripTag,VectorControl::Grip,"",856,536,20,20);
+ layout(w,h);refresh();if(!frame->open(parent,type)){close();return false;}
+ // Tell the host about a clamped restored size before the native-size timer runs.
+ if(plugFrame)requestSize(w,h);return true;
+}
+void PLUGIN_API TapeDriveEditor::close(){controls.clear();panel=nullptr;nativeParent=nullptr;if(frame){frame->close();frame=nullptr;}}
+void TapeDriveEditor::layout(int w,int h){if(!frame)return;sizing=true;frame->setSize(w,h);panel->setViewSize({0,0,double(w),double(h)});for(auto*c:controls){const auto d=c->design;CRect r(d.left*w/baseW,d.top*h/baseH,d.right*w/baseW,d.bottom*h/baseH);c->setViewSize(r);c->setMouseableArea(r);}frame->invalid();sizing=false;}
+tresult PLUGIN_API TapeDriveEditor::onSize(ViewRect*r){if(!r||r->getWidth()<=0||r->getHeight()<=0)return kInvalidArgument;setRect(*r);layout(r->getWidth(),r->getHeight());return kResultTrue;}
+tresult PLUGIN_API TapeDriveEditor::canResize(){return kResultTrue;}
+tresult PLUGIN_API TapeDriveEditor::checkSizeConstraint(ViewRect*r){if(!r)return kInvalidArgument;int w=r->getWidth(),h=r->getHeight();constrain(w,h,true);r->right=r->left+w;r->bottom=r->top+h;return kResultTrue;}
+tresult PLUGIN_API TapeDriveEditor::setContentScaleFactor(ScaleFactor factor){if(!std::isfinite(factor)||factor<=0)return kInvalidArgument;dpi=factor;return kResultTrue;}
+bool TapeDriveEditor::requestSize(int w,int h){constrain(w,h,true);if(!plugFrame)return false;ViewRect r(0,0,w,h);return plugFrame->resizeView(this,&r)==kResultTrue;}
+void TapeDriveEditor::beginEdit(int32_t tag){if(tag<9000)VSTGUIEditor::beginEdit(tag);}
+void TapeDriveEditor::endEdit(int32_t tag){if(tag<9000)VSTGUIEditor::endEdit(tag);}
+void TapeDriveEditor::valueChanged(CControl*c){int tag=c->getTag();if(tag>=zoom70&&tag<=zoom120){const double z[]={.7,.85,1.,1.2};requestSize(int(baseW*z[tag-zoom70]),int(baseH*z[tag-zoom70]));return;}if(tag==gripTag){auto*g=static_cast<VectorControl*>(c);requestSize(int(g->anchor.x+10),int(g->anchor.y+10));return;}if(tag>=9000)return;controller->setParamNormalized(tag,c->getValueNormalized());controller->performEdit(tag,c->getValueNormalized());refresh();}
+void TapeDriveEditor::refresh(){for(auto*c:controls){int tag=c->getTag();if(tag>=9000||c->isEditing())continue;const auto value=controller->getParamNormalized(tag);if(std::abs(value-c->getValue())>1e-6){c->setValue(float(value));c->invalid();}
+ std::string s;char b[64]{};
+ if(tag==kPreampModeId){const char*names[]={"OFF","TUBE","TRANSISTOR"};s=names[std::clamp(int(std::lround(value*2)),0,2)];}
+ else if(tag==kShiftId){const char*names[]={"FLAT","HIGH","NORMAL"};s=names[std::clamp(int(std::lround(value*2)),0,2)];}
+ else if(tag==kGainModeId)s=value>.5?"HIGH":"NORMAL";
+ else if(tag==kDriveBypassId||tag==kOptoBypassId)s=value>.5?"BYPASS":"ON";
+ else if(tag==kInputMeterId||tag==kDriveMeterId){std::snprintf(b,sizeof(b),"%.1f dB",(20/.35)*std::log10(std::max(value,1e-6)));s=b;}
+ else if(tag==kSaturationMeterId){std::snprintf(b,sizeof(b),"%.0f %%",value*100);s=b;}
+ else{String128 str{};controller->getParamStringByValue(tag,value,str);Steinberg::String converted(str);converted.toMultiByte(kCP_Utf8);s=converted.text8();if(tag==kLevelId||tag==kOptoMakeupId||tag==kOptoMeterId)s+=" dB";else if(tag==kHPFCutoffId||tag==kLPFCutoffId)s+=" Hz";else if(tag!=kHPFResId&&tag!=kLPFResId)s+=" %";}
+ c->setText(s);
+}}
+CMessageResult TapeDriveEditor::notify(CBaseObject*sender,const char*message){if(message==CVSTGUITimer::kMsgTimer){
 #if defined(_WIN32)
-    delete nativeWatcher;
-    nativeWatcher=new NativeResizeWatcher(*this,parent,getFrame()->getPlatformFrame()->getPlatformRepresentation());
-    nativeWatcher->fit(static_cast<HWND>(parent));
+ if(frame && nativeParent && !sizing){RECT r{};if(GetClientRect(static_cast<HWND>(nativeParent),&r)&&r.right>0&&r.bottom>0&&(r.right!=getRect().getWidth()||r.bottom!=getRect().getHeight())){ViewRect size(0,0,r.right,r.bottom);onSize(&size);}}
 #endif
-    return true;
-}
-
-void TapeDriveEditor::fitHostSize(const Steinberg::ViewRect& size)
-{
-    auto* frame=getFrame();
-    if(!frame || size.getWidth()<=0 || size.getHeight()<=0)return;
-    const bool previous=applyingSize;
-    applyingSize=true;
-    frame->setAutosizingEnabled(false);
-    // The template and its mouse areas stay in fixed design coordinates.
-    // The same transform scales the background, drawing and hit testing.
-    frame->forEachChild([](const auto& view){
-        if(auto* root=view->asViewContainer()){
-            root->setAutosizingEnabled(false);
-            const VSTGUI::CRect design(0,0,TapeDriveEditorGeometry::width,TapeDriveEditorGeometry::height);
-            root->setViewSize(design);
-            root->setMouseableArea(design);
-        }
-    });
-    frame->setTransform(VSTGUI::CGraphicsTransform().scale(
-        size.getWidth()/TapeDriveEditorGeometry::width,
-        size.getHeight()/TapeDriveEditorGeometry::height));
-    frame->setSize(size.getWidth(),size.getHeight());
-    frame->setAutosizingEnabled(true);
-    frame->invalid();
-    applyingSize=previous;
-}
-
-void TapeDriveEditor::applyZoom(double factor)
-{
-    factor=std::clamp(factor,TapeDriveEditorGeometry::minZoom,TapeDriveEditorGeometry::maxZoom);
-    const double dpi=getContentScaleFactor();
-    const VSTGUI::CPoint target(TapeDriveEditorGeometry::pixelWidth(factor,dpi),
-                                TapeDriveEditorGeometry::pixelHeight(factor,dpi));
-    // Ask the host first. Do not change CFrame's cached zoom before its resize
-    // callback; hosts may re-enter onSize or reject this request.
-    requestResize(target);
-    fitHostSize(getRect());
-}
-
-Steinberg::tresult PLUGIN_API TapeDriveEditor::checkSizeConstraint(Steinberg::ViewRect* rect)
-{
-    if(!rect)return Steinberg::kInvalidArgument;
-    const double dpi=getContentScaleFactor();
-    const double zoom=TapeDriveEditorGeometry::zoomForWidth(rect->getWidth(),dpi);
-    rect->right=rect->left+TapeDriveEditorGeometry::pixelWidth(zoom,dpi);
-    rect->bottom=rect->top+TapeDriveEditorGeometry::pixelHeight(zoom,dpi);
-    return Steinberg::kResultTrue;
-}
-
-Steinberg::tresult PLUGIN_API TapeDriveEditor::onSize(Steinberg::ViewRect* rect)
-{
-    if(!rect || rect->getWidth()<=0 || rect->getHeight()<=0)return Steinberg::kInvalidArgument;
-    // Some hosts resize without checkSizeConstraint. Always fit their accepted
-    // client rectangle instead of rejecting it and leaving an unscaled panel.
-    userZoom=rect->getWidth()/(TapeDriveEditorGeometry::width*TapeDriveEditorGeometry::dpi(getContentScaleFactor()));
-    setRect(*rect);
-    fitHostSize(*rect);
-    return Steinberg::kResultTrue;
-}
-
-#ifdef VST3_CONTENT_SCALE_SUPPORT
-Steinberg::tresult PLUGIN_API TapeDriveEditor::setContentScaleFactor(ScaleFactor factor)
-{
-    if(!std::isfinite(factor) || factor<=0)return Steinberg::kInvalidArgument;
-    const auto previousRect=getRect();
-    applyingSize=true;
-    const auto result=VSTGUI::VST3Editor::setContentScaleFactor(factor);
-    applyingSize=false;
-    if(result!=Steinberg::kResultOk)return result;
-    const Steinberg::ViewRect target(0,0,
-        TapeDriveEditorGeometry::pixelWidth(userZoom,factor),
-        TapeDriveEditorGeometry::pixelHeight(userZoom,factor));
-    if(!getFrame()){
-        setRect(target); // Required when DPI is supplied before attached/setFrame.
-    }else{
-        // Undo the base editor's eager frame resize, then use the host callback.
-        fitHostSize(previousRect);
-        requestResize({static_cast<double>(target.getWidth()),static_cast<double>(target.getHeight())});
-        fitHostSize(getRect());
-    }
-    return result;
-}
-#endif
-
-bool TapeDriveEditor::beforeSizeChange(const VSTGUI::CRect& newSize,const VSTGUI::CRect& oldSize)
-{
-    return applyingSize || VSTGUI::VST3Editor::beforeSizeChange(newSize,oldSize);
-}
-
-void TapeDriveEditor::valueChanged(VSTGUI::CControl* control)
-{
-    if(control && control->getTag()>=9001 && control->getTag()<=9004){
-        if(control->getValueNormalized()>0.5f){
-            const double factors[]={0.75,1.0,1.25,1.5};
-            applyZoom(factors[control->getTag()-9001]);
-        }
-        return;
-    }
-    VSTGUI::VST3Editor::valueChanged(control);
-}
+ refresh();}return VSTGUIEditor::notify(sender,message);}
+tresult PLUGIN_API TapeDriveEditor::findParameter(int32 x,int32 y,ParamID&id){for(auto*c:controls)if(c->getTag()<9000&&c->kind!=VectorControl::Meter&&c->getViewSize().pointInside({double(x),double(y)})){id=c->getTag();return kResultTrue;}return kResultFalse;}
 }

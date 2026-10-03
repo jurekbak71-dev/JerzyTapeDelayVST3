@@ -1,6 +1,5 @@
 #include "tapedrive_controller.h"
 #include "tapedrive_params.h"
-#include "tapedrive_gui_views.h"
 #include "tapedrive_editor.h"
 #include "tapedrive_state.h"
 #include <cmath>
@@ -25,7 +24,6 @@ private: double lo,hi;
 
 
 tresult PLUGIN_API TapeDriveController::initialize(FUnknown*c){
- registerTapeDriveViews();
  auto r=EditControllerEx1::initialize(c); if(r!=kResultOk)return r;
  auto add=[this](const TChar*n,ParamID id,const TChar*u,double lo,double hi,double def,int prec,int32 steps=0,int32 flags=ParameterInfo::kCanAutomate){
   auto*p=new RangeParameter(n,id,u,lo,hi,def,steps,flags); p->setPrecision(prec); parameters.addParameter(p);
@@ -50,7 +48,10 @@ tresult PLUGIN_API TapeDriveController::initialize(FUnknown*c){
  add(STR16("Opto Compression"),kOptoAmountId,STR16("%"),0,100,35,1);
  add(STR16("Opto Makeup"),kOptoMakeupId,STR16("dB"),-12,12,0,1);
  add(STR16("Opto Bypass"),kOptoBypassId,STR16(""),0,1,0,0,1);
- add(STR16("Opto Gain Reduction"),kOptoMeterId,STR16("dB"),0,24,0,1,0,ParameterInfo::kIsReadOnly);
+ add(STR16("Opto Colour"),kOptoColorId,STR16("%"),0,100,40,1);
+ add(STR16("Opto Recovery"),kOptoRecoveryId,STR16("%"),0,100,50,1);
+ add(STR16("Opto Mix"),kOptoMixId,STR16("%"),0,100,100,1);
+ add(STR16("Opto Gain Reduction"),kOptoMeterId,STR16("dB"),0,36,0,1,0,ParameterInfo::kIsReadOnly);
  add(STR16("Input Meter"),kInputMeterId,STR16(""),0,1,0,2,0,ParameterInfo::kIsReadOnly);
  add(STR16("Saturation Meter"),kSaturationMeterId,STR16(""),0,1,0,2,0,ParameterInfo::kIsReadOnly);
  add(STR16("Output Meter"),kDriveMeterId,STR16(""),0,1,0,2,0,ParameterInfo::kIsReadOnly);
@@ -64,19 +65,19 @@ tresult PLUGIN_API TapeDriveController::setComponentState(IBStream*s){
  if(!readTapeDriveState(b,p)) return kResultFalse;
  const ParamID ids[]={kSatId,kLevelId,kDryId,kGainModeId,kShiftId,kDriveBypassId,
    kHPFCutoffId,kHPFResId,kLPFCutoffId,kLPFResId,kWowId,kPreampModeId,kPreampDriveId,
-   kFlutterId,kTapeAgeId,kOptoAmountId,kOptoMakeupId,kOptoBypassId};
+   kFlutterId,kTapeAgeId,kOptoAmountId,kOptoMakeupId,kOptoBypassId,
+   kOptoColorId,kOptoRecoveryId,kOptoMixId};
  const double values[]={p.sat,p.level,p.dry,p.gainMode,p.shift,p.bypass,
    p.hpfCutoff,p.hpfRes,p.lpfCutoff,p.lpfRes,p.wowFlutter,p.preampMode,p.preampDrive,
-   p.flutter,p.tapeAge,p.optoAmount,p.optoMakeup,p.optoBypass};
- for(int i=0;i<18;++i) setParamNormalized(ids[i],values[i]);
+   p.flutter,p.tapeAge,p.optoAmount,p.optoMakeup,p.optoBypass,
+   p.optoColor,p.optoRecovery,p.optoMix};
+ for(int i=0;i<21;++i) setParamNormalized(ids[i],values[i]);
  return kResultOk;
 }
 
 IPlugView* PLUGIN_API TapeDriveController::createView(const char*n){
  if(n&&std::strcmp(n,ViewType::kEditor)==0){
-   auto* editor = new TapeDriveEditor(this,"view","tapedrive_vintage.uidesc");
-   editor->setAllowedZoomFactors({0.75,1.0,1.25,1.5});
-   return editor;
+   return new TapeDriveEditor(this);
  }
  return nullptr;
 }

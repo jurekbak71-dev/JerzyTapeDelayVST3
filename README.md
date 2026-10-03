@@ -1,71 +1,83 @@
-# Jerzy Tape Drive VST3
+# Jerzy Tape Drive — Vector 1.1
 
-Projekt efektu taśmowego **Jerzy Tape Drive**.
+Wtyczka VST3 dla Windows x64. Interfejs zbudowany od nowa, bez bitmap i plików
+UIDescription. Zachowane są identyfikatory wtyczki i dotychczasowych parametrów. Nowe parametry
+dopisano na końcu stanu; stare projekty można wczytać. Brzmienie DSP zostało
+celowo rozszerzone, więc te same ustawienia mogą brzmieć mocniej.
 
-## Tape Drive — Analog Vibes
+## Interfejs
 
-![Podgląd układu interfejsu](docs/tapedrive-preview.png)
+- Rozmiar początkowy: **880 × 560 px**. DPI nie mnoży ponownie wymiarów okna.
+- Zapisany wcześniej za duży rozmiar jest ograniczany do obszaru roboczego ekranu.
+- Przyciski **70 / 85 / 100 / 120%** są zawsze u góry. Dostępny jest też uchwyt
+  do przeciągania prawego dolnego narożnika i zmiana rozmiaru przez host.
+- Gałki, teksty, przyciski i wskaźniki są rysowane wektorowo. Po resize kontrolki
+  otrzymują nowe prostokąty rysowania i kliknięć; CFrame nie jest powiększany
+  transformacją. Nie ma starego edytora, fotorealistycznego tła ani szpul.
+- Gałka: przeciąganie pionowe, kółko myszy, Shift dla precyzyjnej regulacji,
+  podwójne kliknięcie albo Ctrl+klik dla resetu. Zmiany zgłaszają gesty automatyzacji.
+- Przyciski wyboru cyklicznie zmieniają stan po kliknięciu.
 
-Panel Tape Drive nawiązuje do dostarczonego wzoru: drewniana obudowa, zużyty metal,
-szpule, metalowe gałki i bursztynowe wskaźniki. Ilustracja pokazuje układ oraz
-przykładowe ustawienia; nie jest zrzutem okna DAW.
+Sekcje: kompresor optyczny na wejściu (Reduction, Colour, Recovery, Mix, Makeup, bypass, GR), taśma
+(Drive, Gain, Contour), przedwzmacniacz (Off/Tube/Transistor, Drive), wyjście
+(Level, Dry, bypass), Wow, Flutter, Age i filtry HPF/LPF z rezonansami.
+Wskaźniki: Input, Output, Saturation.
 
-- **DRIVE**: nasycenie taśmy. **OUTPUT**: poziom całego toru mokrego, razem z szumem.
-- **DRY**: dodanie oryginalnego sygnału (dotychczasowy tryb addytywny).
-- **WOW**: wolne, losowo zmieniające się odchylenia transportu.
-- **FLUTTER**: niezależne, szybsze i nieregularne drżenie transportu.
-- **TAPE AGE**: szum taśmy, losowe trzaski, krótkie ubytki sygnału i utrata góry.
-  Przy 0% nie dodaje szumu ani trzasków. Artefakty pojawiają się także na ciszy.
-- **OPTICAL INPUT COMPRESSOR**: miękkie kolano, detekcja połączona dla stereo,
-  szybka i wolna faza powrotu z pamięcią poziomu. COMPRESSION reguluje ilość
-  kompresji, MAKEUP poziom przed przedwzmacniaczem, GR pokazuje redukcję w dB.
-- **PREAMP**: OFF / TUBE / TRANSISTOR; **GAIN** i **SHIFT** zachowują swoje funkcje.
-- **HPF / LPF**: częstotliwości filtrów i rezonans Q na wyjściu.
-- Lampka przy **BYPASS** świeci, gdy dana sekcja jest pomijana.
-  Przełączniki zmieniają stan po kliknięciu; gałki obsługują przeciąganie,
-  kółko myszy i reset do wartości domyślnej zgodnie z obsługą VSTGUI/DAW.
-- **UI SIZE**: 75 / 100 / 125 / 150%, z uwzględnieniem skali ekranu.
-  Ręczna zmiana rozmiaru dopasowuje cały panel i obszary kliknięć do rzeczywistego
-  obszaru GUI w DAW, także gdy host pomija ograniczenia proporcji.
+## DSP
 
 Tor mokry: wejście → kompresor optyczny → przedwzmacniacz → saturacja taśmy →
-transport Wow/Flutter → zużycie taśmy → OUTPUT → filtry wyjściowe.
-Transport jest wspólny dla kanałów stereo; szum, trzaski i ubytki są niezależne.
-Wow/Flutter używają interpolowanych losowych trajektorii o zmiennym czasie,
-zamiast cyklicznych sinusoid. Przy aktywnej modulacji tor mokry ma ruchome
-opóźnienie około 4 ms; DRY pozostaje bez opóźnienia. To może dać interferencję
-przy mieszaniu z sygnałem suchym, tak jak przy modulowanej taśmie.
+Wow/Flutter → zużycie taśmy → Level → filtry. Dry dodaje oryginalny sygnał.
+Wow i Flutter korzystają z osobnych losowych trajektorii o różnych skalach czasu.
+Dolna część zakresu jest subtelna, górna służy do wyraźnego niszczenia dźwięku.
+Age dodaje poślizgi, krótkie zagniecenia, ubytki kontaktu z głowicą, zmienne
+straty wysokich częstotliwości, oddychający szum i serie trzasków. Age wpływa
+na transport nawet przy Wow=Flutter=0. Ruch taśmy jest wspólny dla stereo;
+uszkodzenia ścieżek i szum mają niezależne składowe. Generator jest inicjowany
+poza callbackiem audio; kolejne odtworzenia nie powtarzają tego samego przebiegu.
+Prędkość głowicy odczytu ma ograniczenie zapobiegające odwróceniu kierunku.
 
-## Zgodność projektów
+Kompresor: detekcja ze sprzężeniem zwrotnym, próg zależny od Reduction,
+miękkie kolano, szybka i wolna odpowiedź fotokomórki oraz pamięć długości
+obciążenia. Maksymalna redukcja wynosi 36 dB (wskaźnik pokazuje rzeczywistą redukcję do 36 dB).
+To model zachowania inspirowany kompresorami optycznymi, nie kopia układu LA-2A.
 
-Dotychczasowe identyfikatory parametrów i identyfikatory wtyczek pozostają stałe.
-Stary parametr Wow/Flutter (ID 311) jest teraz Wow; przy wczytywaniu starych
-stanów Flutter otrzymuje 25% jego wartości. Nowe pola są dopisane na końcu
-stanu. W starych projektach Age pozostaje na 0%, a nowy kompresor jest pomijany.
-Zmieniony model modulacji nie odtwarza starego efektu bit po bicie.
+- **Reduction**: głębokość kompresji; górny zakres może bardzo obniżyć poziom.
+- **Colour**: nasycenie transformatora i asymetryczna saturacja lampowa,
+  harmoniczne parzyste/nieparzyste oraz wzmocnienie niskiego pasma. Działa
+  również przy Reduction=0; 0% daje tor bez tego zabarwienia.
+- **Recovery**: powrót i czas pamięci fotokomórki. Nadal zależy od materiału.
+- **Mix**: równoległa domieszka całego toru kompresora, 0% = sygnał wejściowy.
+- **Makeup**: ręczne wyrównanie poziomu po kompresji, od -12 do +12 dB.
+- **Bypass**: pomija redukcję i kolorowanie, z łagodnym przejściem.
 
-## Kompilacja i pobieranie
+Nowe obwody nieliniowe używają antialiasingu przez funkcję pierwotną (ADAA).
+Nie oznacza to, że cały dotychczasowy tor saturacji taśmy jest oversamplowany.
+Stare stany bez Colour wczytują Colour=0; brak kompresora w bardzo starym stanie
+włącza jego bypass. Numer i kolejność starych parametrów pozostają zachowane.
 
-Workflow **Build Windows VST3** buduje Tape Drive dla Windows x64,
-uruchamia testy DSP i natywny test otwartego GUI w oknie Windows, a następnie
-publikuje paczkę VST3 i obrazy z testów GUI. Test GUI sprawdza przyciski powiększenia, zmianę DPI,
-wyszukiwanie parametrów pod kursorem oraz rzeczywiste kliknięcia po resize.
-W zakładce **Actions**, w zakończonym przebiegu, wybierz
-**JerzyTapeDrive-Windows-x64** i rozpakuj `JerzyTapeDrive.vst3` do
-`C:\Program Files\Common Files\VST3`. Następnie przeskanuj wtyczki w DAW.
+Przykład wyraźnie zużytej taśmy: Wow 65%, Flutter 50%, Age 80%, Dry 0%.
+Przykład gęstego kompresora: Reduction 55%, Colour 60%, Recovery 65%, Mix 75%;
+wyrównaj głośność Makeup i Level. To punkty wyjściowe, zależne od poziomu nagrania.
 
-Lokalnie potrzebne są CMake 3.25+, C++17 i oficjalny Steinberg VST3 SDK
-z submodułami. SDK można wskazać przez `VST3_SDK_ROOT`.
+Dokumentacja podstaw projektu i wyników pomiarów: [docs/dsp-research.md](docs/dsp-research.md).
+
+## Instalacja
+
+Pobierz artefakt **JerzyTapeDrive-Vector-1.1-Windows-x64** z zakończonej kompilacji
+GitHub Actions. Zamknij DAW i zastąp cały folder `JerzyTapeDrive.vst3` w
+`C:\Program Files\Common Files\VST3`. W nowym panelu widnieje **VECTOR 1.1**.
+
+## Kompilacja i weryfikacja
 
 ```sh
 cmake -S . -B build -DVST3_SDK_ROOT=/path/to/vst3sdk -DSMTG_CREATE_PLUGIN_LINK=0
-cmake --build build --config Release --target JerzyTapeDrive TapeDriveDSPTests
-ctest --test-dir build -C Release --output-on-failure -R TapeDriveDSP
+cmake --build build --config Release --target JerzyTapeDrive TapeDriveDSPTests TapeDriveCharacterTests
+ctest --test-dir build -C Release --output-on-failure -R "TapeDrive(DSP|Character)"
 ```
 
-Same testy DSP można zbudować bez SDK:
-
-```sh
-c++ -std=c++17 -O2 tests/tapedrive_test.cpp -o tapedrive_test
-./tapedrive_test
-```
+Workflow Windows sprawdza kompilację, walidator VST3, regresje DSP i rzeczywiste
+GUI w HWND: początkowe wymiary, DPI, ograniczenie zapisanego dużego rozmiaru,
+przyciski powiększenia, wszystkie obszary parametrów, przeciąganie gałki,
+gesty automatyzacji, bypass, uchwyt resize i zmianę okna bez callbacku VST3.
+Test widocznego okna porównuje piksele pulpitu z oczekiwanym panelem i zapisuje
+zrzuty. Jest to test w hoście Windows; nie uruchamia FL Studio.

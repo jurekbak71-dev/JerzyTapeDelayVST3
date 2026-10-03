@@ -1,6 +1,5 @@
 #pragma once
 #include "public.sdk/source/vst/vsteditcontroller.h"
-#include "vstgui/plugin-bindings/vst3editor.h"
 namespace JerzyAudio {
 class TapeDriveController:public Steinberg::Vst::EditControllerEx1{
 public:

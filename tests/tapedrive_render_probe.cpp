@@ -26,8 +26,7 @@ extern "C" __declspec(dllexport) int __cdecl JerzyRenderEditorForTest(Steinberg:
     image.write(reinterpret_cast<const char*>(png.data()),png.size());
     auto pixels=VSTGUI::owned(VSTGUI::CBitmapPixelAccess::create(bitmap));
     if(!pixels)return 0;
-    // Wood near all four edges must be opaque and painted; the former blank
-    // right/bottom strips (or an unscaled bitmap) must fail this test.
+    // All four edges must be painted, not blank.
     for(double y:{.05,.95})for(double x:{.035,.965}){
         int painted=0;
         for(int j=-3;j<=3;++j)for(int i=-3;i<=3;++i){
@@ -38,20 +37,42 @@ extern "C" __declspec(dllexport) int __cdecl JerzyRenderEditorForTest(Steinberg:
         std::cout<<"Rendered edge patch "<<x<<','<<y<<": "<<painted<<"/49 painted pixels\n";
         if(painted<40)return 0;
     }
+    // Check every rendered knob at its intended coordinates. A screen/reference
+    // comparison alone accepts the same clipped drawing in both images.
+    struct KnobRect { double x,y,w,h; };
+    for(auto k:{KnobRect{26,112,80,86},KnobRect{112,112,80,86},KnobRect{198,112,80,86},
+                KnobRect{26,200,80,76},KnobRect{112,200,80,76},
+                KnobRect{318,116,112,122},KnobRect{446,116,112,122},
+                KnobRect{606,116,112,122},KnobRect{734,116,112,122},
+                KnobRect{30,332,116,117},KnobRect{164,332,116,117},KnobRect{298,332,116,117},
+                KnobRect{456,332,92,108},KnobRect{558,332,92,108},KnobRect{660,332,92,108},KnobRect{762,332,92,108}}){
+        for(auto offset:{VSTGUI::CPoint{-.12,0},VSTGUI::CPoint{.12,0},VSTGUI::CPoint{0,-.12},VSTGUI::CPoint{0,.12}}){
+            const auto x=static_cast<uint32_t>((k.x+k.w*(.5+offset.x))*rect.getWidth()/880.);
+            const auto y=static_cast<uint32_t>((k.y+k.h*(.48+offset.y))*rect.getHeight()/560.);
+            int bodyPixels=0;
+            for(int dy=-2;dy<=2;++dy)for(int dx=-2;dx<=2;++dx){
+                pixels->setPosition(x+dx,y+dy);VSTGUI::CColor c;pixels->getColor(c);
+                const bool body=std::abs(int(c.red)-19)<6 && std::abs(int(c.green)-23)<6 && std::abs(int(c.blue)-28)<6;
+                const bool needle=c.red>80 && c.green>80 && c.blue>80 && std::abs(int(c.blue)-c.red)<30;
+                if(body || needle)++bodyPixels;
+            }
+            // The needle may cross a patch; count its light pixels as well as the dark body.
+            if(bodyPixels<10){
+                std::cerr<<"Missing/clipped knob at "<<k.x<<','<<k.y<<" quadrant "<<offset.x<<','<<offset.y<<" body="<<bodyPixels<<"/25\n";return 0;
+            }
+        }
+    }
     return !png.empty();
 }
 
 // Capture pixels actually presented on the Windows desktop. The offscreen
 // probe above cannot detect a stale/undersized DirectComposition surface.
+#ifndef NOMINMAX
+#define NOMINMAX
+#endif
 #include <windows.h>
 #include <vector>
 #include "vstgui/lib/cgraphicstransform.h"
-extern "C" __declspec(dllexport) int __cdecl JerzyResetTransformForTest(Steinberg::IPlugView* view){
-    auto* editor=dynamic_cast<JerzyAudio::TapeDriveEditor*>(view);
-    if(!editor || !editor->getFrame())return 0;
-    editor->getFrame()->setTransform(VSTGUI::CGraphicsTransform());
-    return 1;
-}
 extern "C" __declspec(dllexport) int __cdecl JerzyCaptureVisibleEditorForTest(Steinberg::IPlugView* view,const char* path){
     auto* editor=dynamic_cast<JerzyAudio::TapeDriveEditor*>(view);
     if(!editor || !editor->getFrame())return 0;

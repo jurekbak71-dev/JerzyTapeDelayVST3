@@ -9,12 +9,14 @@ namespace JerzyAudio {
 template<class Stream>
 bool readTapeDriveState(Stream& stream, TapeDriveParams& p) {
     p=TapeDriveParams{};
+    p.optoColor=0.0; // Old presets retain an uncoloured optical circuit.
     p.optoBypass=1.0; // Older sessions had no input compressor.
     double* values[]={&p.sat,&p.level,&p.dry,&p.gainMode,&p.shift,&p.bypass,
         &p.hpfCutoff,&p.hpfRes,&p.lpfCutoff,&p.lpfRes,&p.wowFlutter,
         &p.preampMode,&p.preampDrive,&p.flutter,&p.tapeAge,
-        &p.optoAmount,&p.optoMakeup,&p.optoBypass};
-    for(int i=0;i<18;++i){
+        &p.optoAmount,&p.optoMakeup,&p.optoBypass,
+        &p.optoColor,&p.optoRecovery,&p.optoMix};
+    for(int i=0;i<21;++i){
         float value=0.0f;
         if(!stream.readFloat(value)) {
             if(i<6) return false;
@@ -30,7 +32,7 @@ bool writeTapeDriveState(Stream& stream,const TapeDriveParams& p) {
     const double values[]={p.sat,p.level,p.dry,p.gainMode,p.shift,p.bypass,
         p.hpfCutoff,p.hpfRes,p.lpfCutoff,p.lpfRes,p.wowFlutter,
         p.preampMode,p.preampDrive,p.flutter,p.tapeAge,
-        p.optoAmount,p.optoMakeup,p.optoBypass};
+        p.optoAmount,p.optoMakeup,p.optoBypass,p.optoColor,p.optoRecovery,p.optoMix};
     for(auto value:values) if(!stream.writeFloat(static_cast<float>(value))) return false;
     return true;
 }

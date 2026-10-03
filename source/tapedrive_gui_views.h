@@ -1,39 +1,26 @@
 #pragma once
-#include "vstgui/lib/controls/cknob.h"
-
+#include "vstgui/lib/controls/ccontrol.h"
+#include "vstgui/lib/controls/icontrollistener.h"
+#include <string>
 namespace JerzyAudio {
-// Retaining the class name keeps existing UI descriptions loadable.
-class ChickenKnob : public VSTGUI::CKnob {
+class VectorControl final : public VSTGUI::CControl {
 public:
-    ChickenKnob(const VSTGUI::CRect&,VSTGUI::IControlListener*,int32_t);
-    void draw(VSTGUI::CDrawContext*) override;
+ enum Kind { Knob, Choice, Action, Meter, Grip };
+ VectorControl(const VSTGUI::CRect&,VSTGUI::IControlListener*,int,Kind,std::string,int steps=0);
+ VSTGUI::CBaseObject* newCopy() const override {return new VectorControl(*this);}
+ void draw(VSTGUI::CDrawContext*) override;
+ VSTGUI::CMouseEventResult onMouseDown(VSTGUI::CPoint&,const VSTGUI::CButtonState&) override;
+ VSTGUI::CMouseEventResult onMouseMoved(VSTGUI::CPoint&,const VSTGUI::CButtonState&) override;
+ VSTGUI::CMouseEventResult onMouseUp(VSTGUI::CPoint&,const VSTGUI::CButtonState&) override;
+ VSTGUI::CMouseEventResult onMouseCancel() override;
+ void onMouseWheelEvent(VSTGUI::MouseWheelEvent&) override;
+ void setText(std::string);
+ Kind kind; VSTGUI::CRect design; std::string label,display; int steps;
+ VSTGUI::CPoint anchor; float startValue=0;
 };
-class AnalogMeter : public VSTGUI::CKnob {
+class VectorPanel final : public VSTGUI::CView {
 public:
-    AnalogMeter(const VSTGUI::CRect&,VSTGUI::IControlListener*,int32_t);
-    void draw(VSTGUI::CDrawContext*) override;
+ explicit VectorPanel(const VSTGUI::CRect&);
+ void draw(VSTGUI::CDrawContext*) override;
 };
-class ToggleSwitch : public VSTGUI::CKnob {
-public:
-    ToggleSwitch(const VSTGUI::CRect&,VSTGUI::IControlListener*,int32_t);
-    void draw(VSTGUI::CDrawContext*) override;
-    VSTGUI::CMouseEventResult onMouseDown(VSTGUI::CPoint&,const VSTGUI::CButtonState&) override;
-};
-class ThreeWaySwitch : public ToggleSwitch {
-public:
-    ThreeWaySwitch(const VSTGUI::CRect&,VSTGUI::IControlListener*,int32_t);
-    void draw(VSTGUI::CDrawContext*) override;
-    VSTGUI::CMouseEventResult onMouseDown(VSTGUI::CPoint&,const VSTGUI::CButtonState&) override;
-};
-class BypassButton : public ToggleSwitch {
-public:
-    using ToggleSwitch::ToggleSwitch;
-    void draw(VSTGUI::CDrawContext*) override;
-};
-class HardwarePanel : public VSTGUI::CKnob {
-public:
-    HardwarePanel(const VSTGUI::CRect&,VSTGUI::IControlListener*,int32_t);
-    void draw(VSTGUI::CDrawContext*) override;
-};
-void registerTapeDriveViews();
 }
