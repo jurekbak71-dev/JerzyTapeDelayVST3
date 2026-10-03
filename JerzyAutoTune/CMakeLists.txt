@@ -1,5 +1,5 @@
 cmake_minimum_required(VERSION 3.24)
-project(JerzyAutoTune VERSION 1.0.0)
+project(JerzyAutoTune VERSION 1.2.0)
 
 include(FetchContent)
 FetchContent_Declare(JUCE
@@ -15,9 +15,9 @@ FetchContent_MakeAvailable(signalsmith-stretch)
 
 juce_add_plugin(JerzyAutoTune
     COMPANY_NAME "Jerzy Audio"
-    BUNDLE_ID "audio.jerzy.autotune.v1"
+    BUNDLE_ID "audio.jerzy.autotune.v12"
     PLUGIN_MANUFACTURER_CODE JzAu
-    PLUGIN_CODE JzB1
+    PLUGIN_CODE JzB2
     FORMATS VST3
     PRODUCT_NAME "JERZY AUTO TUNE")
 
