@@ -30,7 +30,20 @@ public:
     static juce::AudioProcessorValueTreeState::ParameterLayout createLayout();
     float getOutputMeter() const noexcept { return outputMeter.load(); }
 private:
+    int getChoiceIndex(const char* id) const;
+    int chooseArpNote(int pattern, int step);
+    bool arpRhythmGate(int rhythm, int step) const;
+    void resetArpState();
     jerzy::MonoAnalogEngine engine;
     std::atomic<float> outputMeter { 0.0f };
+    double currentSampleRate = 44100.0;
+    double arpSamplesToNext = 0.0;
+    int arpStep = 0;
+    int arpCurrentNote = -1;
+    int arpUpDownPos = 0;
+    juce::Array<int> arpHeldNotes;
+    juce::Array<int> arpLatchedNotes;
+    juce::Array<int> physicalHeldNotes;
+    std::mt19937 arpRng { 0x51a7u };
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR(JerzyMonoAnalogAudioProcessor)
 };
