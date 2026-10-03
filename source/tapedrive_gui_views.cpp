@@ -17,7 +17,7 @@ VectorControl::VectorControl(const CRect&r,IControlListener*l,int tag,Kind k,std
 void VectorControl::setText(std::string s){if(display!=s){display=std::move(s);invalid();}}
 void VectorControl::draw(CDrawContext*c){
  const auto r=getViewSize();const double w=r.getWidth(),h=r.getHeight();
- CDrawContext::Transform tr(*c,CGraphicsTransform().translate(r.left,r.top).scale(w/100.,h/100.));
+ CDrawContext::Transform tr(*c,CGraphicsTransform().scale(w/100.,h/100.).translate(r.left,r.top));
  c->setDrawMode(kAntiAliasing|kNonIntegralMode);
  auto caption=[&](const std::string&s,CRect area,double font,CColor color,CHoriTxtAlign align=kCenterText){
   CDrawContext::Transform unscale(*c,CGraphicsTransform().scale(100./w,100./h));
