@@ -25,7 +25,10 @@ public:
     void setStateInformation(const void*,int) override;
     juce::AudioProcessorValueTreeState apvts;
     static juce::AudioProcessorValueTreeState::ParameterLayout createLayout();
+    void setEffectOrder(const std::array<int,6>&);
+    std::array<int,6> getEffectOrder() const;
 private:
     jerzyfx::FXEngine engine;
+    std::array<std::atomic<int>,6> fxOrder {{{0},{1},{2},{3},{4},{5}}};
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR(JerzyFXBlockAudioProcessor)
 };
