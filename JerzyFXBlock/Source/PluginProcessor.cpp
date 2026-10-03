@@ -31,10 +31,15 @@ void JerzyFXBlockAudioProcessor::processBlock(juce::AudioBuffer<float>& b,juce::
     auto v=[&](const char* id){return apvts.getRawParameterValue(id)->load();};
     double bpm=120.0;
     if(auto* ph=getPlayHead()) if(auto pos=ph->getPosition()) if(auto hostBpm=pos->getBpm()) bpm=*hostBpm;
+    auto choiceIndex=[&](const char* id)
+    {
+        if(auto* p=dynamic_cast<juce::AudioParameterChoice*>(apvts.getParameter(id))) return p->getIndex();
+        return (int)v(id);
+    };
     float delTime=v("delTime");
-    if(v("delSync")>.5f) delTime=delayMsFromDivision((int)v("delDivision"),bpm);
+    if(v("delSync")>.5f) delTime=delayMsFromDivision(choiceIndex("delDivision"),bpm);
     float rotRate=v("rotRate");
-    if(v("rotSync")>.5f) rotRate=rotaryHzFromDivision((int)v("rotDivision"),bpm);
+    if(v("rotSync")>.5f) rotRate=rotaryHzFromDivision(choiceIndex("rotDivision"),bpm);
     const auto order=getEffectOrder();
 
     for(int s=0;s<b.getNumSamples();++s)
