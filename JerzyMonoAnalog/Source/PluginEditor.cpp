@@ -199,7 +199,9 @@ void JerzyMonoAnalogAudioProcessorEditor::drawLabelBox(juce::Graphics& g,const j
 }
 void JerzyMonoAnalogAudioProcessorEditor::drawEnvelope(juce::Graphics&g,juce::Rectangle<float>r,bool filt) const
 {
-    const float sc=scale();r*=sc;juce::Path p;p.startNewSubPath(r.getX(),r.getBottom());p.lineTo(r.getX()+r.getWidth()*.18f,r.getY()+3*sc);p.lineTo(r.getX()+r.getWidth()*.42f,r.getY()+r.getHeight()*.35f);p.lineTo(r.getX()+r.getWidth()*.74f,r.getY()+r.getHeight()*.35f);p.lineTo(r.getRight(),r.getBottom());
+    const float sc=scale();
+    r=juce::Rectangle<float>(r.getX()*sc,r.getY()*sc,r.getWidth()*sc,r.getHeight()*sc);
+    juce::Path p;p.startNewSubPath(r.getX(),r.getBottom());p.lineTo(r.getX()+r.getWidth()*.18f,r.getY()+3*sc);p.lineTo(r.getX()+r.getWidth()*.42f,r.getY()+r.getHeight()*.35f);p.lineTo(r.getX()+r.getWidth()*.74f,r.getY()+r.getHeight()*.35f);p.lineTo(r.getRight(),r.getBottom());
     g.setColour((filt?C(YELLOW):C(GREEN)).withAlpha(.85f));g.strokePath(p,juce::PathStrokeType(juce::jmax(1.0f,1.4f*sc)));
 }
 
