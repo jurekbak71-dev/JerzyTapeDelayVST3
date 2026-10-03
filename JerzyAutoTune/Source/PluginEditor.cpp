@@ -67,36 +67,41 @@ JerzyAutoTuneAudioProcessorEditor::JerzyAutoTuneAudioProcessorEditor(JerzyAutoTu
     configureSlider(gateRelease, " ms");
     configureLabel(gateThresholdLabel, "THRESH");
     configureLabel(gateReleaseLabel, "RELEASE");
-    gateModule = { juce::ToggleButton("ON"), { &gateThreshold, &gateRelease, nullptr, nullptr },
-                   { &gateThresholdLabel, &gateReleaseLabel, nullptr, nullptr }, 2 };
+    gateModule.sliders = { &gateThreshold, &gateRelease, nullptr, nullptr };
+    gateModule.labels = { &gateThresholdLabel, &gateReleaseLabel, nullptr, nullptr };
+    gateModule.count = 2;
 
     configureSlider(noiseThreshold, " dB");
     configureSlider(noiseReduction, " dB");
     configureLabel(noiseThresholdLabel, "FLOOR");
     configureLabel(noiseReductionLabel, "REDUCE");
-    noiseModule = { juce::ToggleButton("ON"), { &noiseThreshold, &noiseReduction, nullptr, nullptr },
-                    { &noiseThresholdLabel, &noiseReductionLabel, nullptr, nullptr }, 2 };
+    noiseModule.sliders = { &noiseThreshold, &noiseReduction, nullptr, nullptr };
+    noiseModule.labels = { &noiseThresholdLabel, &noiseReductionLabel, nullptr, nullptr };
+    noiseModule.count = 2;
 
     configureSlider(deEssFreq, " Hz");
     configureSlider(deEssAmount, " dB");
     configureLabel(deEssFreqLabel, "FREQ");
     configureLabel(deEssAmountLabel, "AMOUNT");
-    deEssModule = { juce::ToggleButton("ON"), { &deEssFreq, &deEssAmount, nullptr, nullptr },
-                    { &deEssFreqLabel, &deEssAmountLabel, nullptr, nullptr }, 2 };
+    deEssModule.sliders = { &deEssFreq, &deEssAmount, nullptr, nullptr };
+    deEssModule.labels = { &deEssFreqLabel, &deEssAmountLabel, nullptr, nullptr };
+    deEssModule.count = 2;
 
     configureSlider(satDrive, " dB");
     configureSlider(satMix, " %");
     configureLabel(satDriveLabel, "DRIVE");
     configureLabel(satMixLabel, "MIX");
-    satModule = { juce::ToggleButton("ON"), { &satDrive, &satMix, nullptr, nullptr },
-                  { &satDriveLabel, &satMixLabel, nullptr, nullptr }, 2 };
+    satModule.sliders = { &satDrive, &satMix, nullptr, nullptr };
+    satModule.labels = { &satDriveLabel, &satMixLabel, nullptr, nullptr };
+    satModule.count = 2;
 
     configureSlider(doublerAmount, " %");
     configureSlider(doublerDelay, " ms");
     configureLabel(doublerAmountLabel, "AMOUNT");
     configureLabel(doublerDelayLabel, "DELAY");
-    doublerModule = { juce::ToggleButton("ON"), { &doublerAmount, &doublerDelay, nullptr, nullptr },
-                      { &doublerAmountLabel, &doublerDelayLabel, nullptr, nullptr }, 2 };
+    doublerModule.sliders = { &doublerAmount, &doublerDelay, nullptr, nullptr };
+    doublerModule.labels = { &doublerAmountLabel, &doublerDelayLabel, nullptr, nullptr };
+    doublerModule.count = 2;
 
     configureSlider(compThreshold, " dB");
     configureSlider(compRatio, ":1");
@@ -106,8 +111,9 @@ JerzyAutoTuneAudioProcessorEditor::JerzyAutoTuneAudioProcessorEditor(JerzyAutoTu
     configureLabel(compRatioLabel, "RATIO");
     configureLabel(compMakeupLabel, "MAKEUP");
     configureLabel(limiterCeilingLabel, "LIMIT");
-    compModule = { juce::ToggleButton("ON"), { &compThreshold, &compRatio, &compMakeup, &limiterCeiling },
-                   { &compThresholdLabel, &compRatioLabel, &compMakeupLabel, &limiterCeilingLabel }, 4 };
+    compModule.sliders = { &compThreshold, &compRatio, &compMakeup, &limiterCeiling };
+    compModule.labels = { &compThresholdLabel, &compRatioLabel, &compMakeupLabel, &limiterCeilingLabel };
+    compModule.count = 4;
 
     configureSlider(eqLow, " dB");
     configureSlider(eqMid, " dB");
@@ -117,8 +123,9 @@ JerzyAutoTuneAudioProcessorEditor::JerzyAutoTuneAudioProcessorEditor(JerzyAutoTu
     configureLabel(eqMidLabel, "PRESENCE");
     configureLabel(eqHighLabel, "AIR");
     configureLabel(outputGainLabel, "OUTPUT");
-    eqModule = { juce::ToggleButton("ON"), { &eqLow, &eqMid, &eqHigh, &outputGain },
-                 { &eqLowLabel, &eqMidLabel, &eqHighLabel, &outputGainLabel }, 4 };
+    eqModule.sliders = { &eqLow, &eqMid, &eqHigh, &outputGain };
+    eqModule.labels = { &eqLowLabel, &eqMidLabel, &eqHighLabel, &outputGainLabel };
+    eqModule.count = 4;
 
     for (auto* module : { &gateModule, &noiseModule, &deEssModule, &satModule, &doublerModule, &compModule, &eqModule })
     {
