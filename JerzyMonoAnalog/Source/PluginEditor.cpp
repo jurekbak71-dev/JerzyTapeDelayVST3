@@ -87,6 +87,102 @@ void JerzyLookAndFeel::positionComboBoxText(juce::ComboBox& b,juce::Label& l)
     l.setBounds(6,1,b.getWidth()-22,b.getHeight()-2);l.setFont(getComboBoxFont(b));
 }
 
+int JerzyMonoAnalogAudioProcessorEditor::PadGrid::padAt(juce::Point<float> p) const
+{
+    auto r=getLocalBounds().toFloat().reduced(8.0f);
+    const float gap=7.0f;
+    const float pw=(r.getWidth()-gap*7.0f)/8.0f;
+    const float ph=(r.getHeight()-gap*7.0f)/8.0f;
+    int col=(int)((p.x-r.getX())/(pw+gap));
+    int row=(int)((p.y-r.getY())/(ph+gap));
+    if(col<0||col>7||row<0||row>7)return -1;
+    auto cell=juce::Rectangle<float>(r.getX()+col*(pw+gap),r.getY()+row*(ph+gap),pw,ph);
+    return cell.contains(p)?row*8+col:-1;
+}
+
+void JerzyMonoAnalogAudioProcessorEditor::PadGrid::paint(juce::Graphics& g)
+{
+    g.fillAll(C(0xff07090b));
+    auto r=getLocalBounds().toFloat().reduced(8.0f);
+    const float gap=7.0f;
+    const float pw=(r.getWidth()-gap*7.0f)/8.0f;
+    const float ph=(r.getHeight()-gap*7.0f)/8.0f;
+    const int playCol=proc.getGridPlayColumn();
+
+    for(int row=0;row<8;++row)
+    {
+        for(int col=0;col<8;++col)
+        {
+            const int raw=row*8+col;
+            auto cell=juce::Rectangle<float>(r.getX()+col*(pw+gap),r.getY()+row*(ph+gap),pw,ph);
+            juce::Colour colr;
+
+            if(mode==JerzyMonoAnalogAudioProcessor::GridMode::sequencer)
+            {
+                const bool on=proc.getGridStep(bank,col,row);
+                colr=on?juce::Colour::fromHSV((float)(7-row)/9.0f,0.90f,0.95f,1.0f):C(0xff182027);
+                if(playCol==col)
+                    colr=on?C(YELLOW):C(0xff5d5314);
+            }
+            else
+            {
+                const float hue=(float)((7-row)*8+col)/64.0f;
+                colr=juce::Colour::fromHSV(hue,0.82f,raw==heldPad?1.0f:0.58f,1.0f);
+            }
+
+            g.setColour(colr.withAlpha(0.20f));g.fillRoundedRectangle(cell.expanded(4.0f),7.0f);
+            g.setColour(colr);g.fillRoundedRectangle(cell,6.0f);
+            g.setColour(juce::Colours::white.withAlpha(0.22f));g.drawRoundedRectangle(cell.reduced(1.0f),5.0f,1.0f);
+        }
+    }
+}
+
+void JerzyMonoAnalogAudioProcessorEditor::PadGrid::mouseDown(const juce::MouseEvent& e)
+{
+    const int raw=padAt(e.position);if(raw<0)return;
+    const int row=raw/8,col=raw%8;
+    if(mode==JerzyMonoAnalogAudioProcessor::GridMode::sequencer)
+    {
+        const bool now=!proc.getGridStep(bank,col,row);
+        proc.setGridStep(bank,col,row,now);
+        repaint();
+    }
+    else
+    {
+        const int launchIndex=(7-row)*8+col;
+        heldPad=raw;
+        proc.launchPadNoteOn(launchIndex);
+        repaint();
+    }
+}
+
+void JerzyMonoAnalogAudioProcessorEditor::PadGrid::mouseDrag(const juce::MouseEvent& e)
+{
+    if(mode!=JerzyMonoAnalogAudioProcessor::GridMode::launch)return;
+    const int raw=padAt(e.position);
+    if(raw<0||raw==heldPad)return;
+    if(heldPad>=0)
+    {
+        const int oldRow=heldPad/8,oldCol=heldPad%8;
+        proc.launchPadNoteOff((7-oldRow)*8+oldCol);
+    }
+    heldPad=raw;
+    const int row=raw/8,col=raw%8;
+    proc.launchPadNoteOn((7-row)*8+col);
+    repaint();
+}
+
+void JerzyMonoAnalogAudioProcessorEditor::PadGrid::mouseUp(const juce::MouseEvent&)
+{
+    if(mode==JerzyMonoAnalogAudioProcessor::GridMode::launch && heldPad>=0)
+    {
+        const int row=heldPad/8,col=heldPad%8;
+        proc.launchPadNoteOff((7-row)*8+col);
+        heldPad=-1;
+        repaint();
+    }
+}
+
 void JerzyMonoAnalogAudioProcessorEditor::OutputMeter::paint(juce::Graphics& g)
 {
     auto r=getLocalBounds().toFloat().reduced(1);g.setColour(C(0xff070809));g.fillRoundedRectangle(r,3);
@@ -99,7 +195,7 @@ void JerzyMonoAnalogAudioProcessorEditor::OutputMeter::paint(juce::Graphics& g)
 }
 
 JerzyMonoAnalogAudioProcessorEditor::JerzyMonoAnalogAudioProcessorEditor(JerzyMonoAnalogAudioProcessor& p)
-:AudioProcessorEditor(&p),proc(p)
+:AudioProcessorEditor(&p),proc(p),padGrid(p)
 {
     setLookAndFeel(&look);setOpaque(true);setResizable(true,true);setResizeLimits(1000,500,1920,1200);setSize(1440,720);
 
@@ -111,6 +207,40 @@ JerzyMonoAnalogAudioProcessorEditor::JerzyMonoAnalogAudioProcessorEditor(JerzyMo
     arpPanelButton.setButtonText("ARP V");
     arpPanelButton.onClick=[this]{setArpPanelVisible(!arpPanelOpen);};
     addAndMakeVisible(arpPanelButton);
+
+    pageButton.setButtonText("PADS");
+    pageButton.onClick=[this]{setMainPage(!padsPage);};
+    addAndMakeVisible(pageButton);
+
+    setupToggle(gridSeqOn,"SEQ PLAY",C(GREEN));
+    setupCombo(gridDivision,{"1/1","1/2","1/4","1/8","1/16","1/32","1/4T","1/8T","1/16T","1/4D","1/8D","1/16D"});
+    setupKnob(gridGate,"GATE","",0.75);
+    setupKnob(gridRoot,"ROOT","",48.0);
+    gridModeButton.setButtonText("MODE: SEQ");
+    gridModeButton.onClick=[this]
+    {
+        const auto next=proc.getGridMode()==JerzyMonoAnalogAudioProcessor::GridMode::sequencer
+            ? JerzyMonoAnalogAudioProcessor::GridMode::launch
+            : JerzyMonoAnalogAudioProcessor::GridMode::sequencer;
+        proc.setGridMode(next);
+        padGrid.setMode(next);
+        updateGridControls();
+    };
+    addAndMakeVisible(gridModeButton);
+
+    gridClearButton.setButtonText("CLEAR BANK");
+    gridClearButton.onClick=[this]{proc.clearGridBank(proc.getGridBank());padGrid.repaint();};
+    addAndMakeVisible(gridClearButton);
+
+    gridBankBox.addItemList({"BANK 1","BANK 2","BANK 3","BANK 4","BANK 5","BANK 6","BANK 7","BANK 8"},1);
+    gridBankBox.setSelectedItemIndex(0,juce::dontSendNotification);
+    gridBankBox.onChange=[this]
+    {
+        const int b=juce::jmax(0,gridBankBox.getSelectedItemIndex());
+        proc.setGridBank(b);padGrid.setBank(b);
+    };
+    addAndMakeVisible(gridBankBox);
+    addAndMakeVisible(padGrid);
 
     setupCombo(osc1Wave,{"SINE","TRIANGLE","SAW","SQUARE"});setupCombo(osc1Oct,{"16'","8'","4'","2'","1'"});
     setupCombo(osc2Wave,{"SINE","TRIANGLE","SAW","SQUARE"});setupCombo(osc2Oct,{"16'","8'","4'","2'","1'"});
@@ -159,8 +289,13 @@ JerzyMonoAnalogAudioProcessorEditor::JerzyMonoAnalogAudioProcessorEditor(JerzyMo
     glideA=std::make_unique<SliderAttachment>(s,"glide",glide);outDriveA=std::make_unique<SliderAttachment>(s,"outDrive",outDrive);masterA=std::make_unique<SliderAttachment>(s,"master",master);arpGateA=std::make_unique<SliderAttachment>(s,"arpGate",arpGate);
     legatoA=std::make_unique<ButtonAttachment>(s,"legato",legato);retriggerA=std::make_unique<ButtonAttachment>(s,"retrigger",retrigger);lfoSyncA=std::make_unique<ButtonAttachment>(s,"lfoSync",lfoSync);
     arpOnA=std::make_unique<ButtonAttachment>(s,"arpOn",arpOn);arpLatchA=std::make_unique<ButtonAttachment>(s,"arpLatch",arpLatch);arpRetriggerA=std::make_unique<ButtonAttachment>(s,"arpRetrigger",arpRetrigger);
+    gridSeqOnA=std::make_unique<ButtonAttachment>(s,"gridSeqOn",gridSeqOn);
+    gridDivisionA=std::make_unique<ComboAttachment>(s,"gridDivision",gridDivision);
+    gridGateA=std::make_unique<SliderAttachment>(s,"gridGate",gridGate);
+    gridRootA=std::make_unique<SliderAttachment>(s,"gridRoot",gridRoot);
 
     setArpPanelVisible(false);
+    setMainPage(false);
     startTimerHz(20);
 }
 
@@ -212,9 +347,24 @@ void JerzyMonoAnalogAudioProcessorEditor::drawEnvelope(juce::Graphics&g,juce::Re
 void JerzyMonoAnalogAudioProcessorEditor::paint(juce::Graphics& g)
 {
     g.fillAll(C(0xff050607));const float sc=scale();g.setColour(C(0xff15181b));g.fillRect(0,0,getWidth(),juce::roundToInt(64*sc));
-    for(const auto&s:sections)drawSection(g,s);
+    if(!padsPage)
+    {
+        for(const auto&s:sections)drawSection(g,s);
+        drawEnvelope(g,{35,330,215,34},false);drawEnvelope(g,{295,330,215,34},true);
+    }
+    else
+    {
+        auto outer=juce::Rectangle<float>(15*sc,75*sc,1410*sc,615*sc);
+        g.setColour(C(PANEL));g.fillRoundedRectangle(outer,6*sc);
+        g.setColour(C(EDGE));g.drawRoundedRectangle(outer,6*sc,1.2f*sc);
+        auto hdr=outer.removeFromTop(34*sc).reduced(5*sc,3*sc);
+        g.setColour(lcdBg);g.fillRoundedRectangle(hdr,2*sc);g.setColour(lcdText);
+        g.setFont(juce::Font(juce::FontOptions(juce::Font::getDefaultMonospacedFontName(),12*sc,juce::Font::bold)));
+        g.drawText("8x8 RGB GRID / 64-STEP SEQUENCER / LAUNCHPAD",hdr.toNearestInt().reduced(20,0),juce::Justification::centredLeft);
+    }
 
-    drawEnvelope(g,{35,330,215,34},false);drawEnvelope(g,{295,330,215,34},true);
+    if(!padsPage)
+    {
 
     // Row 1 labels
     drawLabelBox(g,"WAVE",30,108,105);drawLabelBox(g,"OCTAVE",145,108,95);drawLabelBox(g,"LEVEL",35,263,90);drawLabelBox(g,"PULSE WIDTH",145,263,90);
@@ -235,13 +385,24 @@ void JerzyMonoAnalogAudioProcessorEditor::paint(juce::Graphics& g)
     drawLabelBox(g,"GLIDE",35,665,105);drawLabelBox(g,"GLIDE MODE",165,550,145);drawLabelBox(g,"NOTE PRIORITY",325,550,145);
     drawLabelBox(g,"OUTPUT LEVEL",770,550,210);drawLabelBox(g,"OUTPUT DRIVE",1040,665,110);drawLabelBox(g,"MASTER",1190,665,110);
 
-    if(arpPanelOpen)
+    }
+    if(!padsPage && arpPanelOpen)
     {
         auto r=juce::Rectangle<float>(15*sc,720*sc,1410*sc,165*sc);g.setColour(C(PANEL));g.fillRoundedRectangle(r,5*sc);g.setColour(C(EDGE));g.drawRoundedRectangle(r,5*sc,1.2f*sc);
         auto hdr=r.removeFromTop(30*sc).reduced(5*sc,3*sc);g.setColour(lcdBg);g.fillRoundedRectangle(hdr,2*sc);g.setColour(lcdText);
         g.setFont(juce::Font(juce::FontOptions(juce::Font::getDefaultMonospacedFontName(),12*sc,juce::Font::bold)));g.drawText("ARPEGGIATOR",hdr.toNearestInt().reduced((int)(25*sc),0),juce::Justification::centredLeft);
         drawLed(g,{hdr.getX()+12*sc,hdr.getCentreY()},3.5f*sc,C(GREEN));
         drawLabelBox(g,"DIVISION",170,752,150);drawLabelBox(g,"PATTERN",335,752,180);drawLabelBox(g,"RHYTHM",530,752,180);drawLabelBox(g,"OCTAVES",725,752,130);drawLabelBox(g,"GATE",870,855,110);
+    }
+
+    if(padsPage)
+    {
+        drawLabelBox(g,"MODE",35,112,140);
+        drawLabelBox(g,"BANK",190,112,120);
+        drawLabelBox(g,"TEMPO DIVISION",325,112,150);
+        drawLabelBox(g,"GATE",490,112,105);
+        drawLabelBox(g,"ROOT MIDI NOTE",610,112,120);
+        drawLabelBox(g,"PLAY",745,112,120);
     }
 }
 
@@ -251,9 +412,23 @@ void JerzyMonoAnalogAudioProcessorEditor::resized()
     title.setFont(juce::Font(juce::FontOptions(juce::Font::getDefaultMonospacedFontName(),22*sc,juce::Font::bold)));
     subtitle.setFont(juce::Font(juce::FontOptions(juce::Font::getDefaultMonospacedFontName(),11*sc,juce::Font::bold)));
     preset.setFont(juce::Font(juce::FontOptions(juce::Font::getDefaultMonospacedFontName(),10*sc,juce::Font::bold)));
-    place(title,20,10,310,40);place(subtitle,515,13,410,35);place(preset,1110,13,290,35);place(arpPanelButton,1320,684,95,28);
+    place(title,20,10,310,40);place(subtitle,515,13,410,35);place(preset,1050,13,250,35);place(pageButton,1310,13,105,35);
+    if(!padsPage) place(arpPanelButton,1320,684,95,28);
 
-    place(osc1Wave,30,128,105,30);place(osc1Oct,145,128,95,30);place(osc1Level,35,168,90,88);place(pulseWidth,145,168,90,88);
+    if(padsPage)
+    {
+        place(gridModeButton,35,132,140,34);
+        place(gridBankBox,190,132,120,34);
+        place(gridDivision,325,132,150,34);
+        place(gridGate,490,128,105,82);
+        place(gridRoot,610,128,120,82);
+        place(gridSeqOn,745,132,120,34);
+        place(gridClearButton,885,132,150,34);
+        place(padGrid,180,215,1080,455);
+        return;
+    }
+
+        place(osc1Wave,30,128,105,30);place(osc1Oct,145,128,95,30);place(osc1Level,35,168,90,88);place(pulseWidth,145,168,90,88);
     place(osc2Wave,285,128,110,30);place(osc2Oct,405,128,100,30);place(osc2Level,290,168,95,88);place(detune,410,168,95,88);
     place(subWave,555,128,170,30);place(subLevel,555,168,80,88);place(noiseLevel,645,168,80,88);
     place(mixDrive,770,155,75,100);place(drift,855,155,65,100);
@@ -276,6 +451,60 @@ void JerzyMonoAnalogAudioProcessorEditor::resized()
     }
 }
 
+void JerzyMonoAnalogAudioProcessorEditor::setSynthControlsVisible(bool v)
+{
+    for(auto* c:{
+        (juce::Component*)&arpPanelButton,
+        (juce::Component*)&osc1Wave,(juce::Component*)&osc1Oct,(juce::Component*)&osc2Wave,(juce::Component*)&osc2Oct,(juce::Component*)&subWave,
+        (juce::Component*)&lfoWave,(juce::Component*)&lfoDivision,(juce::Component*)&glideMode,(juce::Component*)&priority,
+        (juce::Component*)&arpDivision,(juce::Component*)&arpPattern,(juce::Component*)&arpRhythm,(juce::Component*)&arpOctaves,
+        (juce::Component*)&osc1Level,(juce::Component*)&pulseWidth,(juce::Component*)&osc2Level,(juce::Component*)&detune,(juce::Component*)&subLevel,(juce::Component*)&noiseLevel,
+        (juce::Component*)&mixDrive,(juce::Component*)&drift,(juce::Component*)&cutoff,(juce::Component*)&resonance,(juce::Component*)&filterDrive,(juce::Component*)&filterEnv,(juce::Component*)&keyTrack,
+        (juce::Component*)&aA,(juce::Component*)&aD,(juce::Component*)&aS,(juce::Component*)&aR,(juce::Component*)&fA,(juce::Component*)&fD,(juce::Component*)&fS,(juce::Component*)&fR,
+        (juce::Component*)&lfoRate,(juce::Component*)&lfoPitch,(juce::Component*)&lfoFilter,(juce::Component*)&lfoPWM,(juce::Component*)&lfoAmp,(juce::Component*)&lfoFade,
+        (juce::Component*)&glide,(juce::Component*)&outDrive,(juce::Component*)&master,(juce::Component*)&arpGate,
+        (juce::Component*)&legato,(juce::Component*)&retrigger,(juce::Component*)&lfoSync,(juce::Component*)&arpOn,(juce::Component*)&arpLatch,(juce::Component*)&arpRetrigger,
+        (juce::Component*)&outputMeter
+    }) c->setVisible(v);
+
+    if(v)
+        setArpPanelVisible(arpPanelOpen);
+}
+
+void JerzyMonoAnalogAudioProcessorEditor::setMainPage(bool pads)
+{
+    padsPage=pads;
+    pageButton.setButtonText(pads?"SYNTH":"PADS");
+
+    if(pads)
+    {
+        arpPanelOpen=false;
+        setSynthControlsVisible(false);
+        for(auto* c:{(juce::Component*)&gridSeqOn,(juce::Component*)&gridModeButton,(juce::Component*)&gridClearButton,(juce::Component*)&gridBankBox,
+                     (juce::Component*)&gridDivision,(juce::Component*)&gridGate,(juce::Component*)&gridRoot,(juce::Component*)&padGrid}) c->setVisible(true);
+        const int w=getWidth();setSize(w,juce::roundToInt(720.0f*(w/1440.0f)));
+    }
+    else
+    {
+        for(auto* c:{(juce::Component*)&gridSeqOn,(juce::Component*)&gridModeButton,(juce::Component*)&gridClearButton,(juce::Component*)&gridBankBox,
+                     (juce::Component*)&gridDivision,(juce::Component*)&gridGate,(juce::Component*)&gridRoot,(juce::Component*)&padGrid}) c->setVisible(false);
+        setSynthControlsVisible(true);
+    }
+    resized();repaint();
+}
+
+void JerzyMonoAnalogAudioProcessorEditor::updateGridControls()
+{
+    const bool launch=proc.getGridMode()==JerzyMonoAnalogAudioProcessor::GridMode::launch;
+    gridModeButton.setButtonText(launch?"MODE: LAUNCH":"MODE: SEQ");
+    gridSeqOn.setEnabled(!launch);
+    gridDivision.setEnabled(!launch);
+    gridGate.setEnabled(!launch);
+    gridBankBox.setEnabled(!launch);
+    gridClearButton.setEnabled(!launch);
+    padGrid.repaint();
+}
+
 void JerzyMonoAnalogAudioProcessorEditor::setArpPanelVisible(bool open)
 {
     arpPanelOpen=open;arpPanelButton.setButtonText(open?"ARP ^":"ARP V");
@@ -287,4 +516,5 @@ void JerzyMonoAnalogAudioProcessorEditor::timerCallback()
 {
     outputMeter.setLevel(proc.getOutputMeter());
     const bool sync=lfoSync.getToggleState();lfoRate.setEnabled(!sync);lfoDivision.setEnabled(sync);
+    if(padsPage) padGrid.refresh();
 }
