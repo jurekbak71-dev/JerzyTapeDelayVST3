@@ -1,6 +1,28 @@
 #include "PluginProcessor.h"
 #include "PluginEditor.h"
 
+namespace
+{
+class HostAutomatableFloat final : public juce::AudioParameterFloat
+{
+public:
+    using juce::AudioParameterFloat::AudioParameterFloat;
+    bool isAutomatable() const override { return true; }
+};
+class HostAutomatableBool final : public juce::AudioParameterBool
+{
+public:
+    using juce::AudioParameterBool::AudioParameterBool;
+    bool isAutomatable() const override { return true; }
+};
+class HostAutomatableChoice final : public juce::AudioParameterChoice
+{
+public:
+    using juce::AudioParameterChoice::AudioParameterChoice;
+    bool isAutomatable() const override { return true; }
+};
+}
+
 JerzyMonoAnalogAudioProcessor::JerzyMonoAnalogAudioProcessor()
 : AudioProcessor(BusesProperties().withOutput("Output", juce::AudioChannelSet::stereo(), true)),
   apvts(*this, nullptr, "PARAMS", createLayout()) {}
@@ -264,7 +286,7 @@ void JerzyMonoAnalogAudioProcessor::setStateInformation(const void* d, int n)
 
 juce::AudioProcessorValueTreeState::ParameterLayout JerzyMonoAnalogAudioProcessor::createLayout()
 {
-    using P = juce::AudioParameterFloat; using B = juce::AudioParameterBool; using C = juce::AudioParameterChoice;
+    using P = HostAutomatableFloat; using B = HostAutomatableBool; using C = HostAutomatableChoice;
     juce::AudioProcessorValueTreeState::ParameterLayout l;
     l.add(std::make_unique<C>("osc1Wave","OSC1 Wave",juce::StringArray{"Sine","Triangle","Saw","Square"},2));
     l.add(std::make_unique<C>("osc2Wave","OSC2 Wave",juce::StringArray{"Sine","Triangle","Saw","Square"},2));
