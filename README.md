@@ -36,22 +36,66 @@ zamiast cyklicznych sinusoid. Przy aktywnej modulacji tor mokry ma ruchome
 opóźnienie około 4 ms; DRY pozostaje bez opóźnienia. To może dać interferencję
 przy mieszaniu z sygnałem suchym, tak jak przy modulowanej taśmie.
 
+## MX Analog Delay — dual multidelay
+
+Projekt zawiera także osobny plugin **Jerzy MX Analog Delay**. Nie kopiuje znaków
+towarowych ani obudów producentów; algorytmy i panele są autorską implementacją
+inspirowaną klasycznymi rodzinami opóźnień sprzętowych.
+
+Dwa niezależne silniki A/B mogą pracować w trybie **SERIES**, **PARALLEL** albo
+**SPLIT L/R**. Każdy slot może wybrać jeden z siedmiu algorytmów i ma osobną,
+automatycznie przełączaną stronę GUI:
+
+- **MultiHead Reel** — cztery głowice playback/feedback, spacing, mechanika,
+  zużycie, low-cut, spread i nasycenie.
+- **Tape Echo** — tape age, wow, flutter, crinkle, bias, low contour, spring
+  oraz trzy tryby maszyny.
+- **Oil Can** — model dysku elektrostatycznego z viscosity, static, head mix,
+  drift i ograniczonym zakresem czasu.
+- **Tube Echo** — pojedyncza głowica, model przedwzmacniacza, record level,
+  bias, mechanika, tape age i stereo spread.
+- **BBD** — warianty 3205 / 3005 / MULTI, filtracja, modulacja, companding,
+  szum układu i sprzężenie krzyżowe.
+- **Doubletrack** — zakres od flangingu przez chorus do slapbacku,
+  saturation, wobble, blend, type, width i auto-flange.
+- **Dual Digital** — dwa tory opóźnienia z modelami 24/96, ADM i 12-bit,
+  ratio, modulacją, cross-feedback, repeat dynamics i tone.
+
+### Integracja z FL Studio
+
+- tempo jest pobierane bezpośrednio z VST3 Process Context;
+- Sync ma podziały od 1/1 do 1/16 i triol;
+- wszystkie edytowalne parametry są publikowane jako stabilne parametry VST3
+  z flagą automatyzacji, więc FL Studio może nagrywać ruchy gałek i tworzyć
+  Automation Clips;
+- wejście event/MIDI jest aktywne, a IMidiMapping mapuje typowe CC do Mix,
+  Bypass, Time, Feedback, Pan i poziomów obu silników;
+- Spillover pozwala zachować ogony po bypassie.
+
+### Kompilacja MX Analog Delay
+
+Workflow **Build Windows VST3** buduje oba pluginy i publikuje osobne artefakty.
+Dla MX pobierz **JerzyMXAnalogDelay-Windows-x64** i skopiuj
+`JerzyMXAnalogDelay.vst3` do `C:\Program Files\Common Files\VST3`.
+
+Test DSP dla MX można uruchomić osobno:
+
+```sh
+c++ -std=c++17 -O2 -Isource tests/mxdelay_test.cpp -o mxdelay_test
+./mxdelay_test
+```
+
 ## Zgodność projektów
 
-Dotychczasowe identyfikatory parametrów i identyfikatory wtyczek pozostają stałe.
-Stary parametr Wow/Flutter (ID 311) jest teraz Wow; przy wczytywaniu starych
-stanów Flutter otrzymuje 25% jego wartości. Nowe pola są dopisane na końcu
-stanu. W starych projektach Age pozostaje na 0%, a nowy kompresor jest pomijany.
-Zmieniony model modulacji nie odtwarza starego efektu bit po bicie.
+Dotychczasowe identyfikatory parametrów i identyfikatory wtyczek Tape Drive
+pozostają stałe. MX Analog Delay ma osobne UID i osobny stan, więc nie zastępuje
+istniejącego Tape Drive.
 
 ## Kompilacja i pobieranie
 
-Workflow **Build Windows VST3** buduje Tape Drive dla Windows x64,
-uruchamia testy DSP i natywny test otwartego GUI w oknie Windows, a następnie
-publikuje paczkę VST3 i obrazy z testów GUI. Test GUI sprawdza przyciski powiększenia, zmianę DPI,
-wyszukiwanie parametrów pod kursorem oraz rzeczywiste kliknięcia po resize.
-W zakładce **Actions**, w zakończonym przebiegu, wybierz
-**JerzyTapeDrive-Windows-x64** i rozpakuj `JerzyTapeDrive.vst3` do
+Workflow **Build Windows VST3** buduje Tape Drive i MX Analog Delay dla Windows x64,
+uruchamia testy DSP oraz natywny test GUI Tape Drive, a następnie publikuje paczki
+VST3. W zakładce **Actions** wybierz odpowiedni artefakt i rozpakuj plugin do
 `C:\Program Files\Common Files\VST3`. Następnie przeskanuj wtyczki w DAW.
 
 Lokalnie potrzebne są CMake 3.25+, C++17 i oficjalny Steinberg VST3 SDK
@@ -59,13 +103,6 @@ z submodułami. SDK można wskazać przez `VST3_SDK_ROOT`.
 
 ```sh
 cmake -S . -B build -DVST3_SDK_ROOT=/path/to/vst3sdk -DSMTG_CREATE_PLUGIN_LINK=0
-cmake --build build --config Release --target JerzyTapeDrive TapeDriveDSPTests
-ctest --test-dir build -C Release --output-on-failure -R TapeDriveDSP
-```
-
-Same testy DSP można zbudować bez SDK:
-
-```sh
-c++ -std=c++17 -O2 tests/tapedrive_test.cpp -o tapedrive_test
-./tapedrive_test
+cmake --build build --config Release --target JerzyTapeDrive JerzyMXAnalogDelay TapeDriveDSPTests MXDelayDSPTests
+ctest --test-dir build -C Release --output-on-failure
 ```
