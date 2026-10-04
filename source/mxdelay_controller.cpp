@@ -1,6 +1,7 @@
 #include "mxdelay_controller.h"
 #include "mxdelay_params.h"
 #include "mxdelay_state.h"
+#include "mxdelay_editor.h"
 #include "tapedrive_gui_views.h"
 #include "base/source/fstreamer.h"
 #include "base/source/fstring.h"
@@ -52,7 +53,7 @@ tresult PLUGIN_API MXDelayController::initialize(FUnknown*c){
  return kResultOk;
 }
 tresult PLUGIN_API MXDelayController::setComponentState(IBStream*s){if(!s)return kResultFalse;IBStreamer b(s,kLittleEndian);MXDelayParams p;if(!readMXState(b,p))return kResultFalse;setParamNormalized(kMXMixId,p.mix);setParamNormalized(kMXInputTrimId,p.inputTrim);setParamNormalized(kMXOutputTrimId,p.outputTrim);setParamNormalized(kMXRoutingId,p.routing);setParamNormalized(kMXBypassId,p.bypass);setParamNormalized(kMXSpillId,p.spill);for(int x=0;x<2;++x){auto&q=p.slot[x];setParamNormalized(slotParam(x,kSlotAlgorithm),q.algorithm);setParamNormalized(slotParam(x,kSlotEnable),q.enable);setParamNormalized(slotParam(x,kSlotSync),q.sync);setParamNormalized(slotParam(x,kSlotDivision),q.division);setParamNormalized(slotParam(x,kSlotTime),q.time);setParamNormalized(slotParam(x,kSlotFeedback),q.feedback);setParamNormalized(slotParam(x,kSlotLevel),q.level);setParamNormalized(slotParam(x,kSlotPan),q.pan);setParamNormalized(slotParam(x,kSlotDuck),q.duck);for(int h=0;h<4;++h)setParamNormalized(slotParam(x,kSlotHeadPan1+h),q.headPan[h]);for(int a=0;a<kAlgorithmCount;++a)for(int k=0;k<kAlgoControls;++k)if(parameters.getParameter(algoParam(x,a,k)))setParamNormalized(algoParam(x,a,k),q.c[a][k]);}return kResultOk;}
-IPlugView* PLUGIN_API MXDelayController::createView(const char*n){if(n&&std::strcmp(n,ViewType::kEditor)==0){auto*e=new VSTGUI::VST3Editor(this,"view","mxdelay.uidesc");e->setAllowedZoomFactors({0.75,1.0,1.25,1.5});return e;}return nullptr;}
+IPlugView* PLUGIN_API MXDelayController::createView(const char*n){if(n&&std::strcmp(n,ViewType::kEditor)==0){auto*e=new MXDelayEditor(this,"view","mxdelay.uidesc");e->setAllowedZoomFactors({0.75,1.0,1.25,1.5});return e;}return nullptr;}
 tresult PLUGIN_API MXDelayController::getMidiControllerAssignment(int32 bus,int16,CtrlNumber cc,ParamID&id){if(bus!=0)return kResultFalse;switch((int)cc){case 1:id=slotParam(0,kSlotFeedback);break;case 7:id=kMXMixId;break;case 11:id=kMXInputTrimId;break;case 64:id=kMXBypassId;break;case 71:id=slotParam(0,kSlotFeedback);break;case 72:id=slotParam(1,kSlotFeedback);break;case 73:id=slotParam(1,kSlotTime);break;case 74:id=slotParam(0,kSlotTime);break;case 76:id=slotParam(0,kSlotPan);break;case 77:id=slotParam(1,kSlotPan);break;case 20:id=slotParam(0,kSlotHeadPan1);break;case 21:id=slotParam(0,kSlotHeadPan2);break;case 22:id=slotParam(0,kSlotHeadPan3);break;case 23:id=slotParam(0,kSlotHeadPan4);break;
 case 24:id=slotParam(1,kSlotHeadPan1);break;case 25:id=slotParam(1,kSlotHeadPan2);break;case 26:id=slotParam(1,kSlotHeadPan3);break;case 27:id=slotParam(1,kSlotHeadPan4);break;
 case 28:id=algoParam(0,(int)DelayAlgorithm::Volante,6);break;case 29:id=algoParam(0,(int)DelayAlgorithm::Volante,7);break;case 30:id=algoParam(0,(int)DelayAlgorithm::Volante,8);break;case 31:id=algoParam(0,(int)DelayAlgorithm::Volante,9);break;
