@@ -149,7 +149,7 @@ void LedToggleSwitch::draw(CDrawContext* c){
     ToggleSwitch::draw(c);
     const auto r=getViewSize();const bool on=getValueNormalized()>=0.5f;
     ellipse(c,r.left+8,r.top+8,5,on?CColor(255,194,73):CColor(42,58,64),CColor(18,25,28));
-    if(on)ellipse(c,r.left+8,r.top+8,2.4,CColor(255,236,166):CColor(255,236,166),CColor(255,236,166));
+    if(on)ellipse(c,r.left+8,r.top+8,2.4,CColor(255,236,166),CColor(255,236,166));
     setDirty(false);
 }
 void LedThreeWaySwitch::draw(CDrawContext* c){
