@@ -536,8 +536,17 @@ void JerzyMonoAnalogAudioProcessorEditor::timerCallback()
     const bool sync=lfoSync.getToggleState();lfoRate.setEnabled(!sync);lfoDivision.setEnabled(sync);
     if(padsPage)
     {
-        const int maxBank=juce::jlimit(0,7,proc.apvts.getRawParameterValue("gridBanks") ? proc.getGridBank() : 7);
-        juce::ignoreUnused(maxBank);
+        int activeBanks=8;
+        if(auto* p=dynamic_cast<juce::AudioParameterChoice*>(proc.apvts.getParameter("gridBanks")))
+            activeBanks=1+p->getIndex();
+
+        if(gridBankBox.getSelectedItemIndex()>=activeBanks)
+        {
+            const int b=activeBanks-1;
+            gridBankBox.setSelectedItemIndex(b,juce::sendNotificationSync);
+            proc.setGridBank(b);
+            padGrid.setBank(b);
+        }
         padGrid.refresh();
     }
 }
