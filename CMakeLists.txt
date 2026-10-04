@@ -45,6 +45,7 @@ endif()
 smtg_add_vst3plugin(JerzyMXAnalogDelay
     source/mxdelay_version.h source/mxdelay_ids.h source/mxdelay_params.h source/mxdelay_state.h
     source/mxdelay_dsp.h source/mxdelay_processor.h source/mxdelay_processor.cpp
+    source/mxdelay_editor_geometry.h source/mxdelay_editor.h source/mxdelay_editor.cpp
     source/mxdelay_controller.h source/mxdelay_controller.cpp
     source/tapedrive_gui_views.h source/tapedrive_gui_views.cpp
     source/mxdelay_entry.cpp resource/mxdelay.uidesc
@@ -72,6 +73,7 @@ endif()
 
 if(BUILD_TESTING AND WIN32)
     target_sources(JerzyTapeDrive PRIVATE tests/tapedrive_render_probe.cpp)
+    target_sources(JerzyMXAnalogDelay PRIVATE tests/mxdelay_render_probe.cpp)
     add_executable(TapeDriveGUITests
         tests/tapedrive_gui_test.cpp
         ${JERZY_VST3_SDK_DIR}/public.sdk/source/vst/hosting/module_win32.cpp
@@ -81,4 +83,14 @@ if(BUILD_TESTING AND WIN32)
     add_dependencies(TapeDriveGUITests JerzyTapeDrive)
     add_test(NAME TapeDriveGUI COMMAND TapeDriveGUITests $<TARGET_FILE:JerzyTapeDrive>)
     set_tests_properties(TapeDriveGUI PROPERTIES TIMEOUT 90)
+
+    add_executable(MXDelayGUITests
+        tests/mxdelay_gui_test.cpp
+        ${JERZY_VST3_SDK_DIR}/public.sdk/source/vst/hosting/module_win32.cpp
+    )
+    target_compile_definitions(MXDelayGUITests PRIVATE NOMINMAX WIN32_LEAN_AND_MEAN)
+    target_link_libraries(MXDelayGUITests PRIVATE sdk_hosting user32 ole32 shell32)
+    add_dependencies(MXDelayGUITests JerzyMXAnalogDelay)
+    add_test(NAME MXDelayGUI COMMAND MXDelayGUITests $<TARGET_FILE:JerzyMXAnalogDelay>)
+    set_tests_properties(MXDelayGUI PROPERTIES TIMEOUT 90)
 endif()
