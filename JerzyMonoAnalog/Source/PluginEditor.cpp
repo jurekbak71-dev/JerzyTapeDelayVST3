@@ -213,9 +213,12 @@ JerzyMonoAnalogAudioProcessorEditor::JerzyMonoAnalogAudioProcessorEditor(JerzyMo
     addAndMakeVisible(pageButton);
 
     setupToggle(gridSeqOn,"SEQ PLAY",C(GREEN));
+    setupToggle(gridMidiTrigger,"MIDI TRIG",C(YELLOW));
     setupCombo(gridDivision,{"1/1","1/2","1/4","1/8","1/16","1/32","1/4T","1/8T","1/16T","1/4D","1/8D","1/16D"});
+    setupCombo(gridRoot,{"C1","C#1","D1","D#1","E1","F1","F#1","G1","G#1","A1","A#1","B1","C2","C#2","D2","D#2","E2","F2","F#2","G2","G#2","A2","A#2","B2","C3","C#3","D3","D#3","E3","F3","F#3","G3","G#3","A3","A#3","B3","C4","C#4","D4","D#4","E4","F4","F#4","G4","G#4","A4","A#4","B4","C5","C#5","D5","D#5","E5","F5","F#5","G5","G#5","A5","A#5","B5","C6"});
+    setupCombo(gridScale,{"CHROMATIC","MAJOR","NAT MINOR","DORIAN","PHRYGIAN","MIXOLYDIAN","MAJOR PENT","MINOR PENT"});
+    setupCombo(gridBanks,{"1 BANK / 8 STEPS","2 BANKS / 16 STEPS","3 BANKS / 24 STEPS","4 BANKS / 32 STEPS","5 BANKS / 40 STEPS","6 BANKS / 48 STEPS","7 BANKS / 56 STEPS","8 BANKS / 64 STEPS"});
     setupKnob(gridGate,"GATE","",0.75);
-    setupKnob(gridRoot,"ROOT","",48.0);
     gridModeButton.setButtonText("MODE: SEQ");
     gridModeButton.onClick=[this]
     {
@@ -290,9 +293,12 @@ JerzyMonoAnalogAudioProcessorEditor::JerzyMonoAnalogAudioProcessorEditor(JerzyMo
     legatoA=std::make_unique<ButtonAttachment>(s,"legato",legato);retriggerA=std::make_unique<ButtonAttachment>(s,"retrigger",retrigger);lfoSyncA=std::make_unique<ButtonAttachment>(s,"lfoSync",lfoSync);
     arpOnA=std::make_unique<ButtonAttachment>(s,"arpOn",arpOn);arpLatchA=std::make_unique<ButtonAttachment>(s,"arpLatch",arpLatch);arpRetriggerA=std::make_unique<ButtonAttachment>(s,"arpRetrigger",arpRetrigger);
     gridSeqOnA=std::make_unique<ButtonAttachment>(s,"gridSeqOn",gridSeqOn);
+    gridMidiTriggerA=std::make_unique<ButtonAttachment>(s,"gridMidiTrigger",gridMidiTrigger);
     gridDivisionA=std::make_unique<ComboAttachment>(s,"gridDivision",gridDivision);
+    gridRootA=std::make_unique<ComboAttachment>(s,"gridRoot",gridRoot);
+    gridScaleA=std::make_unique<ComboAttachment>(s,"gridScale",gridScale);
+    gridBanksA=std::make_unique<ComboAttachment>(s,"gridBanks",gridBanks);
     gridGateA=std::make_unique<SliderAttachment>(s,"gridGate",gridGate);
-    gridRootA=std::make_unique<SliderAttachment>(s,"gridRoot",gridRoot);
 
     setArpPanelVisible(false);
     setMainPage(false);
@@ -399,10 +405,14 @@ void JerzyMonoAnalogAudioProcessorEditor::paint(juce::Graphics& g)
     {
         drawLabelBox(g,"MODE",35,112,140);
         drawLabelBox(g,"BANK",190,112,120);
-        drawLabelBox(g,"TEMPO DIVISION",325,112,150);
-        drawLabelBox(g,"GATE",490,112,105);
-        drawLabelBox(g,"ROOT MIDI NOTE",610,112,120);
-        drawLabelBox(g,"PLAY",745,112,120);
+        drawLabelBox(g,"LENGTH",325,112,175);
+        drawLabelBox(g,"TEMPO DIVISION",515,112,145);
+        drawLabelBox(g,"SCALE",675,112,160);
+        drawLabelBox(g,"ROOT NOTE",850,112,130);
+        drawLabelBox(g,"GATE",35,178,110);
+        drawLabelBox(g,"PLAY",165,178,120);
+        drawLabelBox(g,"MIDI START / GATE",305,178,150);
+        drawLabelBox(g,"EDIT",475,178,150);
     }
 }
 
@@ -419,12 +429,16 @@ void JerzyMonoAnalogAudioProcessorEditor::resized()
     {
         place(gridModeButton,35,132,140,34);
         place(gridBankBox,190,132,120,34);
-        place(gridDivision,325,132,150,34);
-        place(gridGate,490,128,105,82);
-        place(gridRoot,610,128,120,82);
-        place(gridSeqOn,745,132,120,34);
-        place(gridClearButton,885,132,150,34);
-        place(padGrid,180,215,1080,455);
+        place(gridBanks,325,132,175,34);
+        place(gridDivision,515,132,145,34);
+        place(gridScale,675,132,160,34);
+        place(gridRoot,850,132,130,34);
+
+        place(gridGate,35,194,110,52);
+        place(gridSeqOn,165,198,120,34);
+        place(gridMidiTrigger,305,198,150,34);
+        place(gridClearButton,475,198,150,34);
+        place(padGrid,180,252,1080,420);
         return;
     }
 
@@ -480,14 +494,14 @@ void JerzyMonoAnalogAudioProcessorEditor::setMainPage(bool pads)
     {
         arpPanelOpen=false;
         setSynthControlsVisible(false);
-        for(auto* c:{(juce::Component*)&gridSeqOn,(juce::Component*)&gridModeButton,(juce::Component*)&gridClearButton,(juce::Component*)&gridBankBox,
-                     (juce::Component*)&gridDivision,(juce::Component*)&gridGate,(juce::Component*)&gridRoot,(juce::Component*)&padGrid}) c->setVisible(true);
+        for(auto* c:{(juce::Component*)&gridSeqOn,(juce::Component*)&gridMidiTrigger,(juce::Component*)&gridModeButton,(juce::Component*)&gridClearButton,(juce::Component*)&gridBankBox,
+                     (juce::Component*)&gridBanks,(juce::Component*)&gridDivision,(juce::Component*)&gridScale,(juce::Component*)&gridRoot,(juce::Component*)&gridGate,(juce::Component*)&padGrid}) c->setVisible(true);
         const int w=getWidth();setSize(w,juce::roundToInt(720.0f*(w/1440.0f)));
     }
     else
     {
-        for(auto* c:{(juce::Component*)&gridSeqOn,(juce::Component*)&gridModeButton,(juce::Component*)&gridClearButton,(juce::Component*)&gridBankBox,
-                     (juce::Component*)&gridDivision,(juce::Component*)&gridGate,(juce::Component*)&gridRoot,(juce::Component*)&padGrid}) c->setVisible(false);
+        for(auto* c:{(juce::Component*)&gridSeqOn,(juce::Component*)&gridMidiTrigger,(juce::Component*)&gridModeButton,(juce::Component*)&gridClearButton,(juce::Component*)&gridBankBox,
+                     (juce::Component*)&gridBanks,(juce::Component*)&gridDivision,(juce::Component*)&gridScale,(juce::Component*)&gridRoot,(juce::Component*)&gridGate,(juce::Component*)&padGrid}) c->setVisible(false);
         setSynthControlsVisible(true);
     }
     resized();repaint();
@@ -498,7 +512,11 @@ void JerzyMonoAnalogAudioProcessorEditor::updateGridControls()
     const bool launch=proc.getGridMode()==JerzyMonoAnalogAudioProcessor::GridMode::launch;
     gridModeButton.setButtonText(launch?"MODE: LAUNCH":"MODE: SEQ");
     gridSeqOn.setEnabled(!launch);
+    gridMidiTrigger.setEnabled(!launch);
     gridDivision.setEnabled(!launch);
+    gridBanks.setEnabled(!launch);
+    gridScale.setEnabled(!launch);
+    gridRoot.setEnabled(true);
     gridGate.setEnabled(!launch);
     gridBankBox.setEnabled(!launch);
     gridClearButton.setEnabled(!launch);
@@ -516,5 +534,10 @@ void JerzyMonoAnalogAudioProcessorEditor::timerCallback()
 {
     outputMeter.setLevel(proc.getOutputMeter());
     const bool sync=lfoSync.getToggleState();lfoRate.setEnabled(!sync);lfoDivision.setEnabled(sync);
-    if(padsPage) padGrid.refresh();
+    if(padsPage)
+    {
+        const int maxBank=juce::jlimit(0,7,proc.apvts.getRawParameterValue("gridBanks") ? proc.getGridBank() : 7);
+        juce::ignoreUnused(maxBank);
+        padGrid.refresh();
+    }
 }
