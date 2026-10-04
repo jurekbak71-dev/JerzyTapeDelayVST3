@@ -122,6 +122,27 @@ Steinberg::tresult PLUGIN_API MXDelayEditor::setContentScaleFactor(ScaleFactor f
 }
 #endif
 bool MXDelayEditor::beforeSizeChange(const VSTGUI::CRect& newSize,const VSTGUI::CRect& oldSize){return applyingSize||VSTGUI::VST3Editor::beforeSizeChange(newSize,oldSize);}
+void MXDelayEditor::onMouseEvent(VSTGUI::MouseEvent& event,VSTGUI::CFrame* frame){
+    if(event.type==VSTGUI::EventType::MouseDown&&event.buttonState.isRight()&&frame){
+        VSTGUI::CViewContainer::ViewList views;
+        auto point=event.mousePosition;
+        frame->getTransform().transform(point);
+        if(frame->getViewsAt(point,views,VSTGUI::GetViewOptions().deep().includeViewContainer())){
+            for(const auto& view:views){
+                auto* control=view.cast<VSTGUI::CControl>();
+                if(!control||!control->getMouseEnabled()||control->getTag()<0||control->getTag()>=9000)continue;
+                control->beginEdit();
+                control->setValue(control->getDefaultValue());
+                control->valueChanged();
+                control->invalid();
+                control->endEdit();
+                event.consumed=true;
+                return;
+            }
+        }
+    }
+    VSTGUI::VST3Editor::onMouseEvent(event,frame);
+}
 void MXDelayEditor::valueChanged(VSTGUI::CControl* control){
     if(control&&control->getTag()>=9101&&control->getTag()<=9104){
         if(control->getValueNormalized()>0.5f){const double factors[]={0.75,1.0,1.25,1.5};applyZoom(factors[control->getTag()-9101]);}
