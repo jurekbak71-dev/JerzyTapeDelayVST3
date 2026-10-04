@@ -16,5 +16,10 @@ int main(){
         std::cout<<"algo "<<algo<<" peak="<<peak<<" energy="<<energy<<"\n";
     }
     SlotParams s;s.sync=1.0;s.division=4.0/9.0;assert(std::abs(slotDelayMs(s,120.0)-500.0)<1e-6);
+    // Each MultiHead Reel head has independent pan; moving head 1 left must bias stereo energy.
+    dsp.reset();std::fill(outL.begin(),outL.end(),0);std::fill(outR.begin(),outR.end(),0);p=MXDelayParams{};p.mix=1.0;p.slot[0].sync=0.0;p.slot[0].time=0.03;p.slot[1].enable=0.0;
+    for(int h=0;h<4;++h){p.slot[0].c[(int)DelayAlgorithm::Volante][6+h]=(h==0)?1.0:0.0;p.slot[0].c[(int)DelayAlgorithm::Volante][10+h]=0.0;}
+    p.slot[0].headPan[0]=0.0;p.slot[0].c[(int)DelayAlgorithm::Volante][4]=1.0;dsp.process(in,out,2,N,p,120.0,peak);
+    double eL=0,eR=0;for(int i=1;i<N;++i){eL+=std::abs(outL[i]);eR+=std::abs(outR[i]);}assert(eL>eR*2.0);
     return 0;
 }

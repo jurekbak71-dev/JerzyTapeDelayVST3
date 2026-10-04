@@ -35,6 +35,10 @@ enum SlotOffsets : unsigned {
     kSlotLevel = 6,
     kSlotPan = 7,
     kSlotDuck = 8,
+    kSlotHeadPan1 = 10,
+    kSlotHeadPan2 = 11,
+    kSlotHeadPan3 = 12,
+    kSlotHeadPan4 = 13,
     kSlotControlBase = 20
 };
 
@@ -52,6 +56,7 @@ struct SlotParams {
     double level=0.78;
     double pan=0.50;
     double duck=0.0;
+    std::array<double,4> headPan{{0.125,0.375,0.625,0.875}};
     std::array<std::array<double,kAlgoControls>,kAlgorithmCount> c{};
 };
 

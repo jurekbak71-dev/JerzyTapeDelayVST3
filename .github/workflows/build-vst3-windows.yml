@@ -34,18 +34,20 @@ jobs:
       - name: DSP and native GUI regression tests
         shell: pwsh
         run: |
-          cmake --build build --config Release --target TapeDriveDSPTests MXDelayDSPTests TapeDriveGUITests --parallel
+          cmake --build build --config Release --target TapeDriveDSPTests MXDelayDSPTests TapeDriveGUITests MXDelayGUITests --parallel
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
-          ctest --test-dir build -C Release --verbose --output-on-failure -R "^(TapeDriveDSP|MXDelayDSP|TapeDriveGUI)$"
+          ctest --test-dir build -C Release --verbose --output-on-failure -R "^(TapeDriveDSP|MXDelayDSP|TapeDriveGUI|MXDelayGUI)$"
 
       - name: Upload GUI render evidence
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: TapeDrive-GUI-render
+          name: GUI-render-evidence
           path: |
             build/tapedrive-render-*.png
             build/tapedrive-window-*.bmp
+            build/mxdelay-render-*.png
+            build/mxdelay-window-*.bmp
           if-no-files-found: ignore
 
       - name: Collect VST3 bundles

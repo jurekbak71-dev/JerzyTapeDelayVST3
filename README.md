@@ -106,3 +106,16 @@ cmake -S . -B build -DVST3_SDK_ROOT=/path/to/vst3sdk -DSMTG_CREATE_PLUGIN_LINK=0
 cmake --build build --config Release --target JerzyTapeDrive JerzyMXAnalogDelay TapeDriveDSPTests MXDelayDSPTests
 ctest --test-dir build -C Release --output-on-failure
 ```
+
+
+## MX Analog Delay 0.4.1 — GUI / FL Studio integration
+
+- **MultiHead Reel** ma teraz niezależną panoramę dla każdej z czterech głowic. Parametry Head 1–4 Pan są automatyzowalne i zapisywane w stanie projektu.
+- GUI używa skalowalnego edytora 1280×720 z obsługą DPI i resize hosta; przyciski 75 / 100 / 125 / 150% pozwalają wymusić wygodny rozmiar.
+- Layout A/B został przebudowany tak, aby wspólne parametry slotu nie nachodziły na strony algorytmów.
+- Tło jest rysowane proceduralnie jako oksydowana błękitno-stalowa blacha, więc zachowuje ostrość przy skalowaniu.
+- Przełączniki ON/SYNC/PLAY/FB dostały wskaźniki LED.
+- Prawy przycisk myszy na każdej gałce wraca do wartości domyślnej parametru.
+- Automatyzacja VST3 jest obsługiwana na offsetach próbek wewnątrz bloku, co poprawia szybkie przebiegi Automation Clips w FL Studio.
+- MIDI: poza dotychczasowymi mapowaniami CC dodano CC20–27 dla panoram czterech głowic A/B oraz CC28–43 dla włączania głowic playback/feedback.
+- Stan v2 zachowuje zgodność z projektami zapisanymi przez wersję 0.4.0; stare sesje dostają domyślne pozycje panoramy głowic.

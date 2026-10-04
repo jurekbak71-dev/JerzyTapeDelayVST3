@@ -76,6 +76,13 @@ ChickenKnob::ChickenKnob(const CRect& r,IControlListener* l,int32_t tag):CKnob(r
     setWheelInc(0.01f);
 }
 void ChickenKnob::draw(CDrawContext* c){metalKnob(c,getViewSize(),getValueNormalized());setDirty(false);}
+CMouseEventResult ChickenKnob::onMouseDown(CPoint& where,const CButtonState& buttons){
+    if(buttons.isRightButton()){
+        beginEdit();setValue(getDefaultValue());valueChanged();invalid();endEdit();
+        return kMouseDownEventHandledButDontNeedMovedOrUpEvents;
+    }
+    return CKnob::onMouseDown(where,buttons);
+}
 
 AnalogMeter::AnalogMeter(const CRect& r,IControlListener* l,int32_t tag):CKnob(r,l,tag,nullptr,nullptr){
     setMouseEnabled(false);
@@ -105,6 +112,10 @@ void AnalogMeter::draw(CDrawContext* c){
 
 ToggleSwitch::ToggleSwitch(const CRect& r,IControlListener* l,int32_t tag):CKnob(r,l,tag,nullptr,nullptr){setMin(0);setMax(1);setWheelInc(1);}
 CMouseEventResult ToggleSwitch::onMouseDown(CPoint&,const CButtonState& buttons){
+    if(buttons.isRightButton()){
+        beginEdit();setValue(getDefaultValue());valueChanged();invalid();endEdit();
+        return kMouseDownEventHandledButDontNeedMovedOrUpEvents;
+    }
     if(!buttons.isLeftButton())return kMouseEventNotHandled;
     beginEdit();setValueNormalized(getValueNormalized()<0.5f?1.f:0.f);valueChanged();invalid();endEdit();
     return kMouseDownEventHandledButDontNeedMovedOrUpEvents;
@@ -119,7 +130,8 @@ void ToggleSwitch::draw(CDrawContext* c){
     ellipse(c,p.x,end,6,CColor(221,207,179),edge);setDirty(false);
 }
 ThreeWaySwitch::ThreeWaySwitch(const CRect& r,IControlListener* l,int32_t tag):ToggleSwitch(r,l,tag){setMax(2);}
-CMouseEventResult ThreeWaySwitch::onMouseDown(CPoint&,const CButtonState& buttons){
+CMouseEventResult ThreeWaySwitch::onMouseDown(CPoint& where,const CButtonState& buttons){
+    if(buttons.isRightButton())return ToggleSwitch::onMouseDown(where,buttons);
     if(!buttons.isLeftButton())return kMouseEventNotHandled;
     const int current=static_cast<int>(std::lround(getValueNormalized()*2.f));
     beginEdit();setValueNormalized(static_cast<float>((current+1)%3)*0.5f);valueChanged();invalid();endEdit();
@@ -132,6 +144,22 @@ void ThreeWaySwitch::draw(CDrawContext* c){
     const double end=p.y+11*(1.0-2.0*getValueNormalized());
     c->setLineWidth(7);c->setFrameColor(CColor(182,167,142));c->drawLine(p,{p.x,end});
     ellipse(c,p.x,end,6,CColor(221,207,179),edge);setDirty(false);
+}
+void LedToggleSwitch::draw(CDrawContext* c){
+    ToggleSwitch::draw(c);
+    const auto r=getViewSize();const bool on=getValueNormalized()>=0.5f;
+    ellipse(c,r.left+8,r.top+8,5,on?CColor(255,194,73):CColor(42,58,64),CColor(18,25,28));
+    if(on)ellipse(c,r.left+8,r.top+8,2.4,CColor(255,236,166),CColor(255,236,166));
+    setDirty(false);
+}
+void LedThreeWaySwitch::draw(CDrawContext* c){
+    ThreeWaySwitch::draw(c);
+    const auto r=getViewSize();const int pos=std::clamp((int)std::lround(getValueNormalized()*2.f),0,2);
+    for(int i=0;i<3;++i){
+        const double x=r.left+8.0+i*10.0;
+        ellipse(c,x,r.top+8,3.6,i==pos?CColor(92,220,235):CColor(33,51,58),CColor(15,23,27));
+    }
+    setDirty(false);
 }
 void BypassButton::draw(CDrawContext* c){
     CRect r(getViewSize());const double x=r.getCenter().x,y=r.getCenter().y+7;
@@ -151,6 +179,34 @@ void HardwarePanel::draw(CDrawContext* c){
     c->drawLine({40,551},{1160,551});c->drawLine({760,381},{1160,381});
     setDirty(false);
 }
+OxidizedPanel::OxidizedPanel(const CRect& r,IControlListener* l,int32_t tag):CKnob(r,l,tag,nullptr,nullptr){setMouseEnabled(false);}
+void OxidizedPanel::draw(CDrawContext* c){
+    const CRect r(getViewSize());
+    c->setDrawMode(kAntiAliasing|kNonIntegralMode);
+    gradientRect(c,r,CColor(19,62,79),CColor(8,28,42));
+    // Deterministic blue-oxidized steel patina: broad blooms, pitting and brushed scratches.
+    for(int i=0;i<42;++i){
+        const double fx=0.5+0.47*std::sin(1.713*i+0.4);
+        const double fy=0.5+0.46*std::sin(2.371*i+1.1);
+        const double rr=22.0+70.0*(0.5+0.5*std::sin(3.117*i));
+        const uint8_t a=static_cast<uint8_t>(18+22*(0.5+0.5*std::sin(0.87*i)));
+        ellipse(c,r.left+fx*r.getWidth(),r.top+fy*r.getHeight(),rr,CColor(65,143,157,a),CColor(13,63,79,18));
+    }
+    for(int i=0;i<150;++i){
+        const double fx=0.5+0.49*std::sin(7.13*i+0.2);
+        const double fy=0.5+0.49*std::sin(11.71*i+1.8);
+        const double rr=0.7+2.4*(0.5+0.5*std::sin(5.17*i));
+        ellipse(c,r.left+fx*r.getWidth(),r.top+fy*r.getHeight(),rr,CColor(108,173,181,38),CColor(5,35,49,25));
+    }
+    for(int i=0;i<34;++i){
+        const double y=r.top+(i+0.5)*r.getHeight()/34.0;
+        const double dx=8.0+34.0*(0.5+0.5*std::sin(i*1.9));
+        c->setFrameColor(CColor(170,211,216,18));c->setLineWidth(0.7);
+        c->drawLine({r.left+dx,y},{r.right-dx*.7,y+std::sin(i*.8)*2.0});
+    }
+    c->setFrameColor(CColor(132,185,194,90));c->setLineWidth(2.0);c->drawRect(r,kDrawStroked);
+    setDirty(false);
+}
 namespace {
 template<class T> class SimpleCreator : public ViewCreatorAdapter {
 public:
@@ -162,7 +218,8 @@ private:const char* name;
 };
 SimpleCreator<ChickenKnob> knob("ChickenKnob");SimpleCreator<AnalogMeter> meter("AnalogMeter");
 SimpleCreator<ToggleSwitch> toggle("ToggleSwitch");SimpleCreator<ThreeWaySwitch> three("ThreeWaySwitch");
-SimpleCreator<BypassButton> bypass("BypassButton");SimpleCreator<HardwarePanel> panel("HardwarePanel");
+SimpleCreator<LedToggleSwitch> ledToggle("LedToggleSwitch");SimpleCreator<LedThreeWaySwitch> ledThree("LedThreeWaySwitch");
+SimpleCreator<BypassButton> bypass("BypassButton");SimpleCreator<HardwarePanel> panel("HardwarePanel");SimpleCreator<OxidizedPanel> oxidePanel("OxidizedPanel");
 }
 void registerTapeDriveViews(){}
 }
