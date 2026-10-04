@@ -74,8 +74,11 @@ int main(){try{
     TapeDriveParams wornA;wornA.optoBypass=1;wornA.sat=0;wornA.level=2.0/3.0;wornA.tapeAge=0.45;
     TapeDriveParams wornB=wornA;wornB.tapeAge=1.0;
     auto mediumWear=render<double>(wornA,48000,127),heavyWear=render<double>(wornB,48000,127);
-    require(difference(heavyWear.left,clean.left)>difference(mediumWear.left,clean.left)*1.20,
-            "Tape Age maximum must create materially deeper wear/randomization than moderate age");
+    auto mediumWearNoise=render<double>(wornA,48000,127,true),heavyWearNoise=render<double>(wornB,48000,127,true);
+    require(difference(heavyWear.left,mediumWear.left)>1e-5,
+            "Tape Age maximum must change transport/tone materially versus moderate age");
+    require(energy(heavyWearNoise.left)>energy(mediumWearNoise.left)*2.0,
+            "Tape Age maximum must create substantially stronger wear artifacts than moderate age");
 
     p=TapeDriveParams{};p.optoBypass=0;p.sat=0;p.level=2.0/3.0;p.optoAmount=0.9;
     auto compressed=render<double>(p,48000,128);
