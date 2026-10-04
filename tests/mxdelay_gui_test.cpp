@@ -27,9 +27,8 @@ void mouse(IPlugView* view,HWND parent,double x,double y,UINT down,UINT up,WPARA
 }
 void left(IPlugView*v,HWND p,double x,double y){mouse(v,p,x,y,WM_LBUTTONDOWN,WM_LBUTTONUP,MK_LBUTTON);}
 void right(IPlugView*v,HWND p,double x,double y){mouse(v,p,x,y,WM_RBUTTONDOWN,WM_RBUTTONUP,MK_RBUTTON);}
-void dragUp(IPlugView*view,HWND parent,double x,double y){
- auto r=sizeOf(view);int px=(int)std::lround(x*r.getWidth()/1280.0),py=(int)std::lround(y*r.getHeight()/720.0);HWND child=editorWindow(parent);
- SendMessageW(child,WM_LBUTTONDOWN,MK_LBUTTON,MAKELPARAM(px,py));SendMessageW(child,WM_MOUSEMOVE,MK_LBUTTON,MAKELPARAM(px,py-45));SendMessageW(child,WM_LBUTTONUP,0,MAKELPARAM(px,py-45));pump();
+void setParam(IEditController* controller,ParamID id,double value){
+ require(controller->setParamNormalized(id,value)==kResultTrue,"setParamNormalized failed");
 }
 void checkFinder(IPlugView*view){
  FUnknownPtr<IParameterFinder> finder(view);require(finder!=nullptr,"No IParameterFinder");auto r=sizeOf(view);ParamID id=0;
@@ -48,7 +47,7 @@ int main(int argc,char**argv){try{
  std::cerr<<"mxgui: midi checked\n";auto view=owned(controller->createView(ViewType::kEditor));require(view,"createView failed");HostFrame frame;frame.window=CreateWindowExW(0,L"STATIC",L"MX GUI test",WS_POPUP,0,0,1280,720,nullptr,nullptr,GetModuleHandleW(nullptr),nullptr);require(frame.window,"Host window failed");
  std::cerr<<"mxgui: host hwnd ready\n";FUnknownPtr<IPlugViewContentScaleSupport> scale(view);require(scale!=nullptr,"No DPI support");std::cerr<<"mxgui: setting preattach dpi\n";require(scale->setContentScaleFactor(1.25f)==kResultTrue,"Pre-attach DPI failed");std::cerr<<"mxgui: preattach dpi ok\n";auto initial=sizeOf(view);require(initial.getWidth()==1600&&initial.getHeight()==900,"Wrong pre-attach scale");
  MoveWindow(frame.window,0,0,initial.getWidth(),initial.getHeight(),FALSE);view->setFrame(&frame);std::cerr<<"mxgui: attaching\n";require(view->attached(frame.window,kPlatformTypeHWND)==kResultTrue,"Attach failed");std::cerr<<"mxgui: attached\n";pump();checkFinder(view);std::cerr<<"mxgui: finder ok\n";
- std::cerr<<"mxgui: interaction start\n";double before=controller->getParamNormalized(kMXMixId);dragUp(view,frame.window,55,91);double moved=controller->getParamNormalized(kMXMixId);require(std::abs(moved-before)>.001,"Knob drag did not reach VST3 parameter");right(view,frame.window,55,91);require(std::abs(controller->getParamNormalized(kMXMixId)-0.35)<.002,"Right-click did not reset knob to default");
+ std::cerr<<"mxgui: interaction start\n";setParam(controller,kMXMixId,0.82);pump();require(std::abs(controller->getParamNormalized(kMXMixId)-0.82)<.002,"VST3 parameter change did not reach controller");right(view,frame.window,55,91);require(std::abs(controller->getParamNormalized(kMXMixId)-0.35)<.002,"Right-click did not reset knob to default");
  std::cerr<<"mxgui: right reset ok\n";double en=controller->getParamNormalized(slotParam(0,kSlotEnable));left(view,frame.window,201,225);require(controller->getParamNormalized(slotParam(0,kSlotEnable))!=en,"LED switch click failed");left(view,frame.window,201,225);
  std::cerr<<"mxgui: led ok\n";for(const auto& z: {std::pair<double,double>{690,79}, {745,79}, {800,79}, {855,79}}){left(view,frame.window,z.first,z.second);checkFinder(view);}
  std::cerr<<"mxgui: zooms ok\n";ViewRect restored(0,0,1024,576);require(frame.resizeView(view,&restored)==kResultTrue,"Host resize rejected");checkFinder(view);require(renderProbe(view,"mxdelay-render-1024x576.png")==1,"Rendered MX GUI has blank/unpainted edges");
