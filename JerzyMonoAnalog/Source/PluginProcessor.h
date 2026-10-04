@@ -50,6 +50,8 @@ private:
     void resetArpState();
     void processGridSequencerSample(double bpm);
     int gridNoteForRow(int row) const;
+    int gridRootMidiFromChoice() const;
+    bool isGridMidiRunning() const noexcept { return gridMidiRunning.load(); }
     jerzy::MonoAnalogEngine engine;
     std::atomic<float> outputMeter { 0.0f };
     double currentSampleRate = 44100.0;
@@ -66,6 +68,9 @@ private:
     std::atomic<int> gridMode { 0 };
     std::atomic<int> gridBank { 0 };
     std::atomic<int> gridRootNote { 48 };
+    std::atomic<int> gridActiveBanks { 8 };
+    std::atomic<bool> gridMidiRunning { false };
+    std::atomic<int> gridMidiHeldCount { 0 };
     std::atomic<int> gridPlayColumn { -1 };
     std::atomic<int> launchPressedNote { -1 };
     double gridSamplesToNext = 0.0;
