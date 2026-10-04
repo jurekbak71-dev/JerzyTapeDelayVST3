@@ -46,20 +46,21 @@ extern "C" __declspec(dllexport) int __cdecl JerzyRenderEditorForTest(Steinberg:
                 KnobRect{606,116,112,122},KnobRect{734,116,112,122},
                 KnobRect{30,332,116,117},KnobRect{164,332,116,117},KnobRect{298,332,116,117},
                 KnobRect{456,332,92,108},KnobRect{558,332,92,108},KnobRect{660,332,92,108},KnobRect{762,332,92,108}}){
+        int solidPatches=0;
         for(auto offset:{VSTGUI::CPoint{-.12,0},VSTGUI::CPoint{.12,0},VSTGUI::CPoint{0,-.12},VSTGUI::CPoint{0,.12}}){
             const auto x=static_cast<uint32_t>((k.x+k.w*(.5+offset.x))*rect.getWidth()/880.);
             const auto y=static_cast<uint32_t>((k.y+k.h*(.48+offset.y))*rect.getHeight()/560.);
             int bodyPixels=0;
             for(int dy=-2;dy<=2;++dy)for(int dx=-2;dx<=2;++dx){
                 pixels->setPosition(x+dx,y+dy);VSTGUI::CColor c;pixels->getColor(c);
-                const bool body=std::abs(int(c.red)-19)<6 && std::abs(int(c.green)-23)<6 && std::abs(int(c.blue)-28)<6;
-                const bool needle=c.red>80 && c.green>80 && c.blue>80 && std::abs(int(c.blue)-c.red)<30;
-                if(body || needle)++bodyPixels;
+                if(std::abs(int(c.red)-19)<6 && std::abs(int(c.green)-23)<6 && std::abs(int(c.blue)-28)<6)++bodyPixels;
             }
-            // The needle may cross a patch; count its light pixels as well as the dark body.
-            if(bodyPixels<10){
-                std::cerr<<"Missing/clipped knob at "<<k.x<<','<<k.y<<" quadrant "<<offset.x<<','<<offset.y<<" body="<<bodyPixels<<"/25\n";return 0;
-            }
+            if(bodyPixels>=10)++solidPatches;
+        }
+        // A knob needle can cross one probe patch at any angle. Requiring three
+        // untouched body patches still catches a genuinely clipped/missing knob.
+        if(solidPatches<3){
+            std::cerr<<"Missing/clipped knob at "<<k.x<<','<<k.y<<" solid patches="<<solidPatches<<"/4\n";return 0;
         }
     }
     return !png.empty();
