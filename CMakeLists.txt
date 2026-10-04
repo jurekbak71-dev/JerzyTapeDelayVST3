@@ -1,5 +1,5 @@
 cmake_minimum_required(VERSION 3.25)
-project(JerzyAudioPlugins VERSION 0.4.0.0 DESCRIPTION "Jerzy Audio VST3 Plugins")
+project(JerzyAudioPlugins VERSION 0.4.1.0 DESCRIPTION "Jerzy Audio VST3 Plugins")
 
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
