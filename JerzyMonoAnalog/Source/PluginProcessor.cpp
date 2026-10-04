@@ -72,10 +72,27 @@ void JerzyMonoAnalogAudioProcessor::clearGridBank(int bank)
     for(int i=0;i<64;++i) gridPattern[(size_t)(bank*64+i)].store(0);
 }
 
+int JerzyMonoAnalogAudioProcessor::gridRootMidiFromChoice() const
+{
+    return juce::jlimit(24,84,24 + getChoiceIndex("gridRoot"));
+}
+
 int JerzyMonoAnalogAudioProcessor::gridNoteForRow(int row) const
 {
-    static constexpr int scale[8]={0,2,3,5,7,8,10,12};
-    return juce::jlimit(0,127,gridRootNote.load()+scale[juce::jlimit(0,7,7-row)]);
+    static constexpr int scales[8][8] =
+    {
+        {0,1,2,3,4,5,6,7},          // Chromatic
+        {0,2,4,5,7,9,11,12},        // Major
+        {0,2,3,5,7,8,10,12},        // Natural Minor
+        {0,2,3,5,7,9,10,12},        // Dorian
+        {0,1,3,5,7,8,10,12},        // Phrygian
+        {0,2,4,5,7,9,10,12},        // Mixolydian
+        {0,2,4,7,9,12,14,16},       // Major Pentatonic
+        {0,3,5,7,10,12,15,17}       // Minor Pentatonic
+    };
+    const int scale = juce::jlimit(0,7,getChoiceIndex("gridScale"));
+    const int degree = juce::jlimit(0,7,7-row);
+    return juce::jlimit(0,127,gridRootMidiFromChoice()+scales[scale][degree]);
 }
 
 void JerzyMonoAnalogAudioProcessor::launchPadNoteOn(int padIndex)
@@ -98,8 +115,14 @@ void JerzyMonoAnalogAudioProcessor::launchPadNoteOff(int padIndex)
 
 void JerzyMonoAnalogAudioProcessor::processGridSequencerSample(double bpm)
 {
-    const bool on=apvts.getRawParameterValue("gridSeqOn")->load()>0.5f;
-    if(!on)
+    const bool armed = apvts.getRawParameterValue("gridSeqOn")->load()>0.5f;
+    const bool midiTrigger = apvts.getRawParameterValue("gridMidiTrigger")->load()>0.5f;
+    const bool running = armed && (!midiTrigger || gridMidiRunning.load());
+
+    gridActiveBanks.store(1 + getChoiceIndex("gridBanks"));
+    gridRootNote.store(gridRootMidiFromChoice());
+
+    if(!running)
     {
         if(gridCurrentNote>=0){engine.noteOff(gridCurrentNote);gridCurrentNote=-1;}
         gridPlayColumn.store(-1);
@@ -110,12 +133,13 @@ void JerzyMonoAnalogAudioProcessor::processGridSequencerSample(double bpm)
     const int div=getChoiceIndex("gridDivision");
     const double stepSamples=currentSampleRate*(60.0/juce::jmax(1.0,bpm))*q[juce::jlimit(0,11,div)];
     const double gate=juce::jlimit(0.05f,0.98f,apvts.getRawParameterValue("gridGate")->load());
+    const int totalSteps=juce::jlimit(8,64,gridActiveBanks.load()*8);
 
     if(gridSamplesToNext<=0.0)
     {
         if(gridCurrentNote>=0){engine.noteOff(gridCurrentNote);gridCurrentNote=-1;}
 
-        const int step=gridGlobalStep&63;
+        const int step=gridGlobalStep % totalSteps;
         const int bank=step/8;
         const int col=step&7;
         gridPlayColumn.store(col);
@@ -130,7 +154,7 @@ void JerzyMonoAnalogAudioProcessor::processGridSequencerSample(double bpm)
             }
         }
 
-        gridGlobalStep=(gridGlobalStep+1)&63;
+        gridGlobalStep=(gridGlobalStep+1)%totalSteps;
         gridSamplesToNext+=stepSamples;
     }
 
@@ -260,7 +284,7 @@ void JerzyMonoAnalogAudioProcessor::processBlock(juce::AudioBuffer<float>& b, ju
     p.outputDrive = apvts.getRawParameterValue("outDrive")->load();
     p.master = apvts.getRawParameterValue("master")->load();
     p.analogDriftCents = apvts.getRawParameterValue("drift")->load();
-    gridRootNote.store(juce::roundToInt(apvts.getRawParameterValue("gridRoot")->load()));
+    gridRootNote.store(gridRootMidiFromChoice());
     p.legato = apvts.getRawParameterValue("legato")->load() > 0.5f;
     p.retrigger = apvts.getRawParameterValue("retrigger")->load() > 0.5f;
     const int pr = getChoiceIndex("priority");
@@ -295,8 +319,23 @@ void JerzyMonoAnalogAudioProcessor::processBlock(juce::AudioBuffer<float>& b, ju
             if (m.isNoteOn())
             {
                 const int note = m.getNoteNumber();
-                if (!physicalHeldNotes.contains(note))
-                    physicalHeldNotes.add(note);
+                const bool gridMidiTrig = apvts.getRawParameterValue("gridSeqOn")->load()>0.5f
+                                       && apvts.getRawParameterValue("gridMidiTrigger")->load()>0.5f;
+
+                if (gridMidiTrig)
+                {
+                    if (!physicalHeldNotes.contains(note))
+                        physicalHeldNotes.add(note);
+                    gridMidiHeldCount.store(physicalHeldNotes.size());
+                    gridMidiRunning.store(true);
+                    if(gridCurrentNote>=0){engine.noteOff(gridCurrentNote);gridCurrentNote=-1;}
+                    gridGlobalStep=0;
+                    gridSamplesToNext=0.0;
+                }
+                else
+                {
+                    if (!physicalHeldNotes.contains(note))
+                        physicalHeldNotes.add(note);
 
                 if (arpOn)
                 {
@@ -308,11 +347,28 @@ void JerzyMonoAnalogAudioProcessor::processBlock(juce::AudioBuffer<float>& b, ju
                     if (arpRetrig) { arpStep = 0; arpSamplesToNext = 0.0; }
                 }
                 else engine.noteOn(note, m.getFloatVelocity());
+                }
             }
             else if (m.isNoteOff())
             {
                 const int note = m.getNoteNumber();
-                physicalHeldNotes.removeAllInstancesOf(note);
+                const bool gridMidiTrig = apvts.getRawParameterValue("gridSeqOn")->load()>0.5f
+                                       && apvts.getRawParameterValue("gridMidiTrigger")->load()>0.5f;
+
+                if(gridMidiTrig)
+                {
+                    physicalHeldNotes.removeAllInstancesOf(note);
+                    gridMidiHeldCount.store(physicalHeldNotes.size());
+                    if(physicalHeldNotes.isEmpty())
+                    {
+                        gridMidiRunning.store(false);
+                        if(gridCurrentNote>=0){engine.noteOff(gridCurrentNote);gridCurrentNote=-1;}
+                        gridPlayColumn.store(-1);
+                    }
+                }
+                else
+                {
+                    physicalHeldNotes.removeAllInstancesOf(note);
 
                 if (arpOn)
                 {
@@ -321,6 +377,7 @@ void JerzyMonoAnalogAudioProcessor::processBlock(juce::AudioBuffer<float>& b, ju
                         arpLatchedNotes.removeAllInstancesOf(note);
                 }
                 else engine.noteOff(note);
+                }
             }
 
             ++midiIt;
@@ -460,7 +517,10 @@ juce::AudioProcessorValueTreeState::ParameterLayout JerzyMonoAnalogAudioProcesso
     l.add(std::make_unique<B>("gridSeqOn","Grid Sequencer On",false));
     l.add(std::make_unique<C>("gridDivision","Grid Division",juce::StringArray{"1/1","1/2","1/4","1/8","1/16","1/32","1/4T","1/8T","1/16T","1/4D","1/8D","1/16D"},4));
     l.add(std::make_unique<P>("gridGate","Grid Gate",0.05f,0.98f,0.75f));
-    l.add(std::make_unique<P>("gridRoot","Grid Root Note",juce::NormalisableRange<float>(24.0f,84.0f,1.0f),48.0f));
+    l.add(std::make_unique<C>("gridRoot","Grid Root Note",juce::StringArray{"C1","C#1","D1","D#1","E1","F1","F#1","G1","G#1","A1","A#1","B1","C2","C#2","D2","D#2","E2","F2","F#2","G2","G#2","A2","A#2","B2","C3","C#3","D3","D#3","E3","F3","F#3","G3","G#3","A3","A#3","B3","C4","C#4","D4","D#4","E4","F4","F#4","G4","G#4","A4","A#4","B4","C5","C#5","D5","D#5","E5","F5","F#5","G5","G#5","A5","A#5","B5","C6"},24));
+    l.add(std::make_unique<C>("gridScale","Grid Scale",juce::StringArray{"Chromatic","Major","Natural Minor","Dorian","Phrygian","Mixolydian","Major Pent","Minor Pent"},1));
+    l.add(std::make_unique<C>("gridBanks","Grid Length",juce::StringArray{"1 bank / 8 steps","2 banks / 16 steps","3 banks / 24 steps","4 banks / 32 steps","5 banks / 40 steps","6 banks / 48 steps","7 banks / 56 steps","8 banks / 64 steps"},7));
+    l.add(std::make_unique<B>("gridMidiTrigger","Grid MIDI Trigger",false));
     return l;
 }
 
