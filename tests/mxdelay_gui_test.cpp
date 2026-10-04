@@ -52,6 +52,6 @@ int main(int argc,char**argv){try{
  std::cerr<<"mxgui: led ok\n";for(const auto& z: {std::pair<double,double>{690,79}, {745,79}, {800,79}, {855,79}}){left(view,frame.window,z.first,z.second);checkFinder(view);}
  std::cerr<<"mxgui: zooms ok\n";ViewRect restored(0,0,1024,576);require(frame.resizeView(view,&restored)==kResultTrue,"Host resize rejected");checkFinder(view);require(renderProbe(view,"mxdelay-render-1024x576.png")==1,"Rendered MX GUI has blank/unpainted edges");
  std::cerr<<"mxgui: render small ok\n";restored=ViewRect(0,0,1920,1080);require(frame.resizeView(view,&restored)==kResultTrue,"Large host resize rejected");checkFinder(view);require(renderProbe(view,"mxdelay-render-1920x1080.png")==1,"Large MX render invalid");
- std::cerr<<"mxgui: render large ok\n";view->removed();view->setFrame(nullptr);scale=nullptr;view=nullptr;DestroyWindow(frame.window);controller->terminate();controller=nullptr;module.reset();CoUninitialize();
+ std::cerr<<"mxgui: render large ok\n";view->removed();view->setFrame(nullptr);scale=nullptr;view=nullptr;DestroyWindow(frame.window);midi=nullptr;controller->terminate();controller=nullptr;module.reset();CoUninitialize();
  std::cout<<"MX GUI scaling, automation, MIDI, hit areas, LED switch and right-click reset OK\n";
 }catch(const std::exception&e){std::cerr<<e.what()<<'\n';return 1;}}
