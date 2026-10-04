@@ -1,5 +1,6 @@
 #include "mxdelay_editor.h"
 #include "mxdelay_editor_geometry.h"
+#include "tapedrive_gui_views.h"
 #include "vstgui/lib/cframe.h"
 #include "vstgui/lib/cgraphicstransform.h"
 #include "vstgui/lib/controls/ccontrol.h"
@@ -122,6 +123,27 @@ Steinberg::tresult PLUGIN_API MXDelayEditor::setContentScaleFactor(ScaleFactor f
 }
 #endif
 bool MXDelayEditor::beforeSizeChange(const VSTGUI::CRect& newSize,const VSTGUI::CRect& oldSize){return applyingSize||VSTGUI::VST3Editor::beforeSizeChange(newSize,oldSize);}
+void MXDelayEditor::onMouseEvent(VSTGUI::MouseEvent& event,VSTGUI::CFrame* frame){
+    if(event.type==VSTGUI::EventType::MouseDown && event.buttonState.isRight() && frame){
+        VSTGUI::CPoint p(event.mousePosition);
+        frame->getTransform().transform(p);
+        VSTGUI::CViewContainer::ViewList views;
+        if(frame->getViewsAt(p,views,VSTGUI::GetViewOptions().deep().includeViewContainer())){
+            for(const auto& view:views){
+                auto* knob=dynamic_cast<ChickenKnob*>(view.get());
+                if(!knob || !knob->getMouseEnabled() || knob->getTag()<0)continue;
+                knob->beginEdit();
+                knob->setValue(knob->getDefaultValue());
+                knob->valueChanged();
+                knob->invalid();
+                knob->endEdit();
+                event.consumed=true;
+                return;
+            }
+        }
+    }
+    VSTGUI::VST3Editor::onMouseEvent(event,frame);
+}
 void MXDelayEditor::valueChanged(VSTGUI::CControl* control){
     if(control&&control->getTag()>=9101&&control->getTag()<=9104){
         if(control->getValueNormalized()>0.5f){const double factors[]={0.75,1.0,1.25,1.5};applyZoom(factors[control->getTag()-9101]);}
