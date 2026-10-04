@@ -1,4 +1,4 @@
-name: Build Windows VST3
+name: Build TapeDrive Windows VST3
 
 on:
   workflow_dispatch:
@@ -28,29 +28,26 @@ jobs:
 
       - name: Build Release
         shell: pwsh
-        run: |
-          cmake --build build --config Release --target JerzyTapeDrive JerzyMXAnalogDelay --parallel
+        run: cmake --build build --config Release --target JerzyTapeDrive --parallel
 
       - name: DSP and native GUI regression tests
         shell: pwsh
         run: |
-          cmake --build build --config Release --target TapeDriveDSPTests MXDelayDSPTests TapeDriveGUITests MXDelayGUITests --parallel
+          cmake --build build --config Release --target TapeDriveDSPTests TapeDriveGUITests --parallel
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
-          ctest --test-dir build -C Release --verbose --output-on-failure -R "^(TapeDriveDSP|MXDelayDSP|TapeDriveGUI|MXDelayGUI)$"
+          ctest --test-dir build -C Release --verbose --output-on-failure -R "^(TapeDriveDSP|TapeDriveGUI)$"
 
       - name: Upload GUI render evidence
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: GUI-render-evidence
+          name: TapeDrive-GUI-render-evidence
           path: |
             build/tapedrive-render-*.png
             build/tapedrive-window-*.bmp
-            build/mxdelay-render-*.png
-            build/mxdelay-window-*.bmp
           if-no-files-found: ignore
 
-      - name: Collect VST3 bundles
+      - name: Collect VST3 bundle
         shell: pwsh
         run: |
           New-Item -ItemType Directory -Force -Path artifact | Out-Null
@@ -59,11 +56,6 @@ jobs:
           Copy-Item -Recurse -Force $drive.FullName artifact/JerzyTapeDrive.vst3
           Compress-Archive -Path artifact/JerzyTapeDrive.vst3 -DestinationPath JerzyTapeDrive_Windows_x64.zip -Force
 
-          $mx = Get-ChildItem -Path build -Recurse -Directory -Filter "JerzyMXAnalogDelay.vst3" | Select-Object -First 1
-          if (-not $mx) { throw "JerzyMXAnalogDelay.vst3 was not produced" }
-          Copy-Item -Recurse -Force $mx.FullName artifact/JerzyMXAnalogDelay.vst3
-          Compress-Archive -Path artifact/JerzyMXAnalogDelay.vst3 -DestinationPath JerzyMXAnalogDelay_Windows_x64.zip -Force
-
       - name: Upload Tape Drive
         uses: actions/upload-artifact@v4
         with:
@@ -71,13 +63,4 @@ jobs:
           path: |
             artifact/JerzyTapeDrive.vst3
             JerzyTapeDrive_Windows_x64.zip
-          if-no-files-found: error
-
-      - name: Upload MX Analog Delay
-        uses: actions/upload-artifact@v4
-        with:
-          name: JerzyMXAnalogDelay-Windows-x64
-          path: |
-            artifact/JerzyMXAnalogDelay.vst3
-            JerzyMXAnalogDelay_Windows_x64.zip
           if-no-files-found: error
