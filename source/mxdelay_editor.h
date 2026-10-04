@@ -6,6 +6,7 @@ public:
     using VSTGUI::VST3Editor::VST3Editor;
     ~MXDelayEditor() override;
     void valueChanged(VSTGUI::CControl* control) override;
+    void onMouseEvent(VSTGUI::MouseEvent& event,VSTGUI::CFrame* frame) override;
 protected:
     void PLUGIN_API close() override;
     bool PLUGIN_API open(void* parent,const VSTGUI::PlatformType& type) override;
