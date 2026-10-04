@@ -22,7 +22,7 @@ void MXDelayProcessor::sendTempo(ProcessData& d){if(!d.outputParameterChanges)re
 tresult PLUGIN_API MXDelayProcessor::process(ProcessData& d){
  if(d.processContext&&(d.processContext->state&ProcessContext::kTempoValid)&&std::isfinite(d.processContext->tempo)&&d.processContext->tempo>1.0)bpm=d.processContext->tempo;
  if(d.numInputs==0||d.numOutputs==0||d.numSamples<=0){readChanges(d.inputParameterChanges);sendTempo(d);return kResultOk;}
- int ch=std::min(d.inputs[0].numChannels,d.outputs[0].numChannels);if(ch<=0)return kResultOk;
+ int ch=std::min(d.inputs[0].numChannels,d.outputs[0].numChannels);if(ch<=0)return kResultOk;if(d.symbolicSampleSize!=kSample32&&d.symbolicSampleSize!=kSample64)return kResultFalse;lastPeak=0.0;
  struct Event{int32 offset;ParamID id;double value;};std::vector<Event> events;
  if(d.inputParameterChanges){
   for(int32 i=0;i<d.inputParameterChanges->getParameterCount();++i)if(auto*q=d.inputParameterChanges->getParameterData(i)){
@@ -31,10 +31,10 @@ tresult PLUGIN_API MXDelayProcessor::process(ProcessData& d){
  }
  std::stable_sort(events.begin(),events.end(),[](const Event&a,const Event&b){return a.offset<b.offset;});
  auto run32=[&](int32 start,int32 count){
-  if(count<=0)return;float*in[2]={d.inputs[0].channelBuffers32[0]+start,ch>1?d.inputs[0].channelBuffers32[1]+start:nullptr};float*out[2]={d.outputs[0].channelBuffers32[0]+start,ch>1?d.outputs[0].channelBuffers32[1]+start:nullptr};double peak=0;dsp32.process(in,out,ch,count,p,bpm,peak);lastPeak=std::max(lastPeak,peak);
+  if(count<=0)return;auto*baseIn=d.inputs[0].channelBuffers32;auto*baseOut=d.outputs[0].channelBuffers32;float*in[2]={baseIn&&baseIn[0]?baseIn[0]+start:nullptr,ch>1&&baseIn&&baseIn[1]?baseIn[1]+start:nullptr};float*out[2]={baseOut&&baseOut[0]?baseOut[0]+start:nullptr,ch>1&&baseOut&&baseOut[1]?baseOut[1]+start:nullptr};double peak=0;dsp32.process(in,out,ch,count,p,bpm,peak);lastPeak=std::max(lastPeak,peak);
  };
  auto run64=[&](int32 start,int32 count){
-  if(count<=0)return;double*in[2]={d.inputs[0].channelBuffers64[0]+start,ch>1?d.inputs[0].channelBuffers64[1]+start:nullptr};double*out[2]={d.outputs[0].channelBuffers64[0]+start,ch>1?d.outputs[0].channelBuffers64[1]+start:nullptr};double peak=0;dsp64.process(in,out,ch,count,p,bpm,peak);lastPeak=std::max(lastPeak,peak);
+  if(count<=0)return;auto*baseIn=d.inputs[0].channelBuffers64;auto*baseOut=d.outputs[0].channelBuffers64;double*in[2]={baseIn&&baseIn[0]?baseIn[0]+start:nullptr,ch>1&&baseIn&&baseIn[1]?baseIn[1]+start:nullptr};double*out[2]={baseOut&&baseOut[0]?baseOut[0]+start:nullptr,ch>1&&baseOut&&baseOut[1]?baseOut[1]+start:nullptr};double peak=0;dsp64.process(in,out,ch,count,p,bpm,peak);lastPeak=std::max(lastPeak,peak);
  };
  int32 pos=0;size_t ei=0;
  while(ei<events.size()){
