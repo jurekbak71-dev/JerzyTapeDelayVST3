@@ -38,7 +38,7 @@ tresult PLUGIN_API MXDelayController::initialize(FUnknown*c){
   parameters.addParameter(listParam(s==0?STR16("A · Division"):STR16("B · Division"),slotParam(s,kSlotDivision),{STR16("1/1"),STR16("1/2."),STR16("1/2"),STR16("1/4."),STR16("1/4"),STR16("1/8."),STR16("1/8"),STR16("1/4T"),STR16("1/16"),STR16("1/8T")},4));
   parameters.addParameter(rangeParam(s==0?STR16("A · Free Time"):STR16("B · Free Time"),slotParam(s,kSlotTime),STR16("ms"),1,2500,500,1));addPercent(parameters,s==0?STR16("A · Feedback"):STR16("B · Feedback"),slotParam(s,kSlotFeedback),d.slot[s].feedback);addPercent(parameters,s==0?STR16("A · Level"):STR16("B · Level"),slotParam(s,kSlotLevel),d.slot[s].level);parameters.addParameter(rangeParam(s==0?STR16("A · Pan"):STR16("B · Pan"),slotParam(s,kSlotPan),STR16("%"),-100,100,0,1));addPercent(parameters,s==0?STR16("A · Duck"):STR16("B · Duck"),slotParam(s,kSlotDuck),d.slot[s].duck);
   for(int h=0;h<4;++h){
-   String128 hn{};std::string headName=prefix+"MultiHead Reel · Head "+std::to_string(h+1)+" Pan";Steinberg::UString(hn,128).fromAscii(headName.c_str());
+   String128 hn{};std::string headName=std::string(prefix)+"MultiHead Reel · Head "+std::to_string(h+1)+" Pan";Steinberg::UString(hn,128).fromAscii(headName.c_str());
    parameters.addParameter(rangeParam(hn,slotParam(s,kSlotHeadPan1+h),STR16("%"),-100,100,d.slot[s].headPan[h]*200.0-100.0,1));
   }
   for(int a=0;a<kAlgorithmCount;++a)for(int k=0;k<kAlgoControls;++k){if(std::strncmp(ctl[a][k],"Unused",6)==0)continue;std::string n=prefix+std::string(algNames[a])+" · "+ctl[a][k];String128 tn{};Steinberg::UString(tn,128).fromAscii(n.c_str());auto id=algoParam(s,a,k);double def=d.slot[s].c[a][k];
