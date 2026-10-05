@@ -8,6 +8,7 @@ Aktualne projekty:
 - **Jerzy Tape Drive** — https://github.com/jurekbak71-dev/JerzyTapeDriveVST3
 - **JERZY AUTO TUNE** — https://github.com/jurekbak71-dev/JerzyAutoTuneVST3
 - **Jerzy Mono Analog Grid** — https://github.com/jurekbak71-dev/JerzyMonoAnalogVST3
+- **Jerzy Bass Ambient** — https://github.com/jurekbak71-dev/JerzyBassAmbientVST3
 - **Jerzy Audio Quantizer** — https://github.com/jurekbak71-dev/JerzyAudioQuantizer
 
 To repozytorium nie jest już używane do aktywnego developmentu ani buildów. Dotychczasowa historia commitów pozostaje zachowana.
