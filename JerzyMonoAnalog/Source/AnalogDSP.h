@@ -111,43 +111,45 @@ public:
             {
                 double a = 2.0 * p - 1.0;
                 a -= polyBlep(p, dt);
-                // Mild saw-core/waveshaper asymmetry adds low-order analogue harmonics.
-                y = a + 0.020 * (a * a - 0.3333333333) - 0.010 * a * a * a;
+                // Bright VCO saw: asymmetric reset and a small second harmonic.
+                y = 0.93 * a
+                  + 0.070 * std::sin(juce::MathConstants<double>::twoPi * 2.0 * p + 0.13)
+                  + 0.018 * (a * a - 0.3333333333);
                 break;
             }
 
             case Wave::square:
             {
-                double sq = (p < pw ? 1.0 : -1.0);
+                // Real VCO pulse comparators are rarely an exact 50/50 device.
+                const double analogPw = juce::jlimit(0.08, 0.92, pw * 0.985 + 0.0075);
+                double sq = (p < analogPw ? 1.0 : -1.0);
                 sq += polyBlep(p, dt);
-                sq -= polyBlep(wrapped(p - pw), dt);
-                // Tiny comparator imbalance avoids a sterile perfectly symmetric pulse.
-                y = sq > 0.0 ? sq * 0.986 : sq * 1.014;
+                sq -= polyBlep(wrapped(p - analogPw), dt);
+                y = (sq > 0.0 ? sq * 0.90 : sq * 0.94)
+                  + 0.020 * std::sin(juce::MathConstants<double>::twoPi * p);
                 break;
             }
 
             case Wave::triangle:
             {
-                double sq = (p < 0.5 ? 1.0 : -1.0);
-                sq += polyBlep(p, dt);
-                sq -= polyBlep(wrapped(p + 0.5), dt);
-                triState += 4.0 * dt * sq;
-                triState *= 0.999985;
-                const double t = juce::jlimit(-1.18, 1.18, triState);
-                y = std::tanh(1.08 * t) / std::tanh(1.08);
+                // Analytic triangle keeps the spectrum fundamentally different from saw/pulse.
+                double t = 1.0 - 4.0 * std::abs(p - 0.5);
+                t += 0.035 * std::sin(juce::MathConstants<double>::twoPi * 3.0 * p + 0.09);
+                y = 1.08 * std::tanh(0.92 * t) / std::tanh(0.92);
                 break;
             }
 
             case Wave::sine:
             {
-                const double s = std::sin(juce::MathConstants<double>::twoPi * p);
-                y = s + 0.018 * std::sin(juce::MathConstants<double>::twoPi * 2.0 * p + 0.17);
+                const double s1 = std::sin(juce::MathConstants<double>::twoPi * p);
+                const double s2 = std::sin(juce::MathConstants<double>::twoPi * 2.0 * p + 0.17);
+                y = 0.98 * s1 + 0.012 * s2;
                 break;
             }
         }
 
         // Finite analogue bandwidth / edge slew at the oversampled rate.
-        const double fc = juce::jmin(26000.0, sampleRate * 0.18);
+        const double fc = juce::jmin(42000.0, sampleRate * 0.235);
         const double a = 1.0 - std::exp(-2.0 * juce::MathConstants<double>::pi * fc / sampleRate);
         edgeState += a * (y - edgeState);
 
@@ -482,6 +484,7 @@ public:
         decimA.reset(); decimB.reset();
         currentNote = -1; targetMidi = currentMidi = 60.0; heldNotes.clear();
         lastOutput = 0.0; lfoFadeValue = 1.0;
+        prevOsc1 = prevOsc2 = mixerMemory = 0.0;
     }
 
     void setParameters(const MonoParameters& p) { params = p; }
@@ -586,19 +589,61 @@ private:
         osc1.setDriftCents(params.analogDriftCents);
         osc2.setDriftCents(params.analogDriftCents * 1.13);
         sub.setDriftCents(params.analogDriftCents * 0.12);
-        osc1.setFrequency(baseHz * std::pow(2.0, params.osc1Octave));
-        osc2.setFrequency(baseHz * std::pow(2.0, params.osc2Octave + params.osc2DetuneCents / 1200.0));
+        // Small shared-rail / control-feedthrough interaction between free-running VCOs.
+        // It is intentionally subtle: enough for organic beating/sidebands, not enough to sound like explicit FM.
+        const double interact = 0.45 + 3.2 * params.mixerDrive;
+        const double osc1FmCents = prevOsc2 * params.osc2Level * interact;
+        const double osc2FmCents = prevOsc1 * params.osc1Level * interact * 0.86;
+
+        osc1.setFrequency(baseHz * std::pow(2.0, params.osc1Octave + osc1FmCents / 1200.0));
+        osc2.setFrequency(baseHz * std::pow(2.0, params.osc2Octave
+                                                   + params.osc2DetuneCents / 1200.0
+                                                   + osc2FmCents / 1200.0));
         sub.setFrequency(baseHz * 0.5);
 
-        const double n = noiseDist(noiseRng);
-        double mix = params.osc1Level * osc1.process()
-                   + params.osc2Level * osc2.process()
-                   + params.subLevel  * sub.process()
-                   + params.noiseLevel * n;
+        const double o1 = osc1.process();
+        const double o2 = osc2.process();
+        const double os = sub.process();
+        prevOsc1 = o1;
+        prevOsc2 = o2;
 
-        const double mixGain = 1.0 + 6.5 * params.mixerDrive;
-        const double mixerBiased = mix + 0.018 * mix * mix;
-        mix = saturateAsymmetric(mixerBiased * mixGain) / std::sqrt(mixGain);
+        const double n = noiseDist(noiseRng);
+
+        // Mixer channels remain independent through the normal operating range.
+        // No automatic gain compensation: turning one oscillator up must not turn the others down.
+        const double ch1 = params.osc1Level * o1;
+        const double ch2 = params.osc2Level * o2;
+        const double chS = params.subLevel  * os;
+        const double chN = params.noiseLevel * n;
+        const double linearSum = ch1 + ch2 + chS + chN;
+
+        // Shared analogue bus interaction generates sum/difference products.
+        const double cross = ch1 * ch2
+                           + 0.45 * (ch1 * chS + ch2 * chS)
+                           + 0.10 * (ch1 + ch2) * chN;
+
+        // Mostly-linear mixer up to ordinary levels; overload begins progressively above that.
+        const double drive = juce::jlimit(0.0, 1.0, params.mixerDrive);
+        const double bus = linearSum
+                         + (0.018 + 0.095 * drive) * cross
+                         + (0.006 + 0.026 * drive) * linearSum * linearSum;
+
+        const double threshold = 2.05 - 0.95 * drive;
+        double mix;
+        const double ax = std::abs(bus);
+        if (ax <= threshold)
+            mix = bus;
+        else
+        {
+            const double excess = ax - threshold;
+            const double soft = threshold + std::tanh(excess * (0.80 + 1.7 * drive))
+                                          / (0.80 + 1.7 * drive);
+            mix = std::copysign(soft, bus);
+        }
+
+        // Tiny bus memory models capacitor/transistor settling and makes beating less sterile.
+        mixerMemory += (mix - mixerMemory) * 0.34;
+        mix = 0.88 * mix + 0.12 * mixerMemory;
 
         filterEnv.set(params.filterAttack, params.filterDecay, params.filterSustain, params.filterRelease);
         ampEnv.set(params.ampAttack, params.ampDecay, params.ampSustain, params.ampRelease);
@@ -632,6 +677,7 @@ private:
     int currentNote = -1;
     double targetMidi = 60.0, currentMidi = 60.0, velocityGain = 1.0, lastOutput = 0.0;
     double lfoFadeValue = 1.0;
+    double prevOsc1 = 0.0, prevOsc2 = 0.0, mixerMemory = 0.0;
     std::mt19937 noiseRng;
     std::mt19937 keyRng;
     std::uniform_real_distribution<double> noiseDist {-1.0, 1.0};
